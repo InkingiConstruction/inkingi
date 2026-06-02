@@ -20,6 +20,7 @@ export const ENDPOINTS = {
     LIST: "/messages",
     CREATE: "/messages",
     CONVERSATIONS: "/messages/conversations",
+    DETAIL: (id: string) => `/messages/${id}`,
   },
   PROJECTS: {
     LIST: "/projects",

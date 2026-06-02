@@ -1,13 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -27,6 +30,7 @@ type ProjectMessage = {
   content: string;
   photoUrl?: string | null;
   createdAt: string;
+  editedAt?: string | null;
   sender?: {
     id: string;
     name: string;
@@ -68,6 +72,8 @@ export function MessagesScreen() {
   const [content, setContent] = useState("");
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [error, setError] = useState("");
+  const [editingMessage, setEditingMessage] = useState<ProjectMessage | null>(null);
+  const [previewImage, setPreviewImage] = useState<ProjectMessage | null>(null);
   const [showMentions, setShowMentions] = useState(false);
 
   const conversationsQuery = useQuery({
@@ -168,7 +174,46 @@ export function MessagesScreen() {
     },
   });
 
+  const editMessage = useMutation({
+    mutationFn: async () => {
+      if (!editingMessage) throw new Error("Select a message to edit.");
+      const nextContent = content.trim();
+      if (!nextContent) throw new Error("Message cannot be empty.");
+
+      return api.put(ENDPOINTS.MESSAGES.DETAIL(editingMessage.id), {
+        content: nextContent,
+        photoUrl: editingMessage.photoUrl,
+      });
+    },
+    onSuccess: () => {
+      setContent("");
+      setEditingMessage(null);
+      setError("");
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Failed to edit message");
+    },
+  });
+
+  const deleteMessage = useMutation({
+    mutationFn: async (messageId: string) => api.delete(ENDPOINTS.MESSAGES.DETAIL(messageId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Failed to delete message");
+    },
+  });
+
   const submit = () => {
+    if (editingMessage) {
+      editMessage.mutate();
+      return;
+    }
+
     if (!activeConversation || (!content.trim() && !image)) {
       setError("Select a chat and add a message or image");
       return;
@@ -194,6 +239,37 @@ export function MessagesScreen() {
 
     if (!result.canceled) {
       setImage(result.assets[0]);
+    }
+  };
+
+  const startEdit = (message: ProjectMessage) => {
+    setEditingMessage(message);
+    setContent(message.content);
+    setImage(null);
+    setError("");
+  };
+
+  const confirmDelete = (message: ProjectMessage) => {
+    Alert.alert("Delete message", "Delete this message for everyone?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteMessage.mutate(message.id),
+      },
+    ]);
+  };
+
+  const downloadPreviewImage = async () => {
+    if (!previewImage?.photoUrl) return;
+
+    try {
+      const extension = previewImage.photoUrl.split("?")[0].split(".").pop() || "jpg";
+      const target = `${FileSystem.documentDirectory}inkingi-chat-${previewImage.id}.${extension}`;
+      const result = await FileSystem.downloadAsync(previewImage.photoUrl, target);
+      Alert.alert("Image downloaded", `Saved inside the app files:\n${result.uri}`);
+    } catch (err) {
+      Alert.alert("Download failed", err instanceof Error ? err.message : "Try again.");
     }
   };
 
@@ -276,7 +352,15 @@ export function MessagesScreen() {
               }
               renderItem={({ item }) => {
                 const isMine = item.sender?.id === user?.id;
-                return <ChatBubble item={item} isMine={isMine} />;
+                return (
+                  <ChatBubble
+                    item={item}
+                    isMine={isMine}
+                    onDelete={confirmDelete}
+                    onEdit={startEdit}
+                    onOpenImage={setPreviewImage}
+                  />
+                );
               }}
             />
           )}
@@ -426,8 +510,40 @@ export function MessagesScreen() {
                   </Pressable>
                 </View>
               ) : null}
+              {editingMessage ? (
+                <View
+                  style={{
+                    alignItems: "center",
+                    backgroundColor: "#F8FAFC",
+                    borderLeftColor: COLORS.PRIMARY,
+                    borderLeftWidth: 3,
+                    borderRadius: 10,
+                    flexDirection: "row",
+                    gap: 10,
+                    marginBottom: 8,
+                    padding: 8,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 12, fontWeight: "900" }}>
+                      Editing message
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 2 }}>
+                      {editingMessage.content}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      setEditingMessage(null);
+                      setContent("");
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={22} color={COLORS.TEXT_SECONDARY} />
+                  </Pressable>
+                </View>
+              ) : null}
               <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
-                <Pressable onPress={pickImage}>
+                <Pressable disabled={Boolean(editingMessage)} onPress={pickImage}>
                   <Ionicons name="attach-outline" size={22} color={COLORS.TEXT_PRIMARY} />
                 </Pressable>
                 <Pressable
@@ -458,7 +574,7 @@ export function MessagesScreen() {
                   value={content}
                 />
                 <Pressable
-                  disabled={sendMessage.isPending}
+                  disabled={sendMessage.isPending || editMessage.isPending}
                   onPress={submit}
                   style={{
                     alignItems: "center",
@@ -466,11 +582,11 @@ export function MessagesScreen() {
                     borderRadius: 18,
                     height: 36,
                     justifyContent: "center",
-                    opacity: sendMessage.isPending ? 0.7 : 1,
+                    opacity: sendMessage.isPending || editMessage.isPending ? 0.7 : 1,
                     width: 36,
                   }}
                 >
-                  <Ionicons name="send-outline" size={17} color={COLORS.TEXT_WHITE} />
+                  <Ionicons name={editingMessage ? "checkmark-outline" : "send-outline"} size={17} color={COLORS.TEXT_WHITE} />
                 </Pressable>
               </View>
               {error ? (
@@ -480,13 +596,30 @@ export function MessagesScreen() {
               ) : null}
             </View>
           </View>
+          <ImagePreviewModal
+            message={previewImage}
+            onClose={() => setPreviewImage(null)}
+            onDownload={downloadPreviewImage}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function ChatBubble({ item, isMine }: { item: ProjectMessage; isMine: boolean }) {
+function ChatBubble({
+  item,
+  isMine,
+  onDelete,
+  onEdit,
+  onOpenImage,
+}: {
+  item: ProjectMessage;
+  isMine: boolean;
+  onDelete: (message: ProjectMessage) => void;
+  onEdit: (message: ProjectMessage) => void;
+  onOpenImage: (message: ProjectMessage) => void;
+}) {
   return (
     <View style={{ alignItems: isMine ? "flex-end" : "flex-start" }}>
       <View
@@ -510,17 +643,29 @@ function ChatBubble({ item, isMine }: { item: ProjectMessage; isMine: boolean })
           {item.content}
         </Text>
         {item.photoUrl ? (
-          <Image
-            source={{ uri: item.photoUrl }}
-            style={{
-              borderRadius: 10,
-              height: 170,
-              marginTop: 10,
-              width: 210,
-            }}
-          />
+          <Pressable onPress={() => onOpenImage(item)}>
+            <Image
+              source={{ uri: item.photoUrl }}
+              style={{
+                borderRadius: 10,
+                height: 170,
+                marginTop: 10,
+                width: 210,
+              }}
+            />
+          </Pressable>
         ) : null}
       </View>
+      {isMine ? (
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 5 }}>
+          <Pressable onPress={() => onEdit(item)}>
+            <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 11, fontWeight: "900" }}>Edit</Text>
+          </Pressable>
+          <Pressable onPress={() => onDelete(item)}>
+            <Text style={{ color: COLORS.ERROR, fontSize: 11, fontWeight: "900" }}>Delete</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <Text
         style={{
           color: COLORS.TEXT_LIGHT,
@@ -531,8 +676,54 @@ function ChatBubble({ item, isMine }: { item: ProjectMessage; isMine: boolean })
         }}
       >
         {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        {item.editedAt
+          ? ` · edited ${new Date(item.editedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+          : ""}
       </Text>
     </View>
+  );
+}
+
+function ImagePreviewModal({
+  message,
+  onClose,
+  onDownload,
+}: {
+  message: ProjectMessage | null;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  return (
+    <Modal animationType="fade" transparent visible={Boolean(message?.photoUrl)}>
+      <View style={{ backgroundColor: "#050505", flex: 1 }}>
+        <View
+          style={{
+            alignItems: "center",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            paddingHorizontal: 16,
+            paddingTop: 18,
+          }}
+        >
+          <Pressable onPress={onClose} style={previewButtonStyle}>
+            <Ionicons name="close-outline" size={25} color={COLORS.TEXT_WHITE} />
+          </Pressable>
+          <Text numberOfLines={1} style={{ color: COLORS.TEXT_WHITE, flex: 1, fontWeight: "900", marginHorizontal: 12 }}>
+            {message?.sender?.name || "Chat image"}
+          </Text>
+          <Pressable onPress={onDownload} style={previewButtonStyle}>
+            <Ionicons name="download-outline" size={22} color={COLORS.TEXT_WHITE} />
+          </Pressable>
+        </View>
+        {message?.photoUrl ? (
+          <Image
+            resizeMode="contain"
+            source={{ uri: message.photoUrl }}
+            style={{ flex: 1, width: "100%" }}
+          />
+        ) : null}
+      </View>
+    </Modal>
   );
 }
 
@@ -576,4 +767,13 @@ const headerButtonStyle = {
   height: 44,
   justifyContent: "center" as const,
   width: 44,
+};
+
+const previewButtonStyle = {
+  alignItems: "center" as const,
+  backgroundColor: "rgba(255,255,255,0.16)",
+  borderRadius: 20,
+  height: 40,
+  justifyContent: "center" as const,
+  width: 40,
 };
