@@ -1,14 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { Image, Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { useState } from "react";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { ClientTopBar } from "@/components/client/client-top-bar";
 import { ClientMilestone, ClientProgressPhoto } from "@/components/client/client-types";
 import { COLORS } from "@/constants/colors";
+import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
 export default function ClientProgress() {
+  const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
   const progressQuery = useQuery({
     queryKey: ["client-progress-photos"],
     queryFn: async () => (await api.get<ClientProgressPhoto[]>(ENDPOINTS.PROGRESS_PHOTOS.LIST)).data,
@@ -57,41 +60,53 @@ export default function ClientProgress() {
           </Panel>
 
           <Panel title="Recent progress uploads">
-            {progress.map((photo) => (
-              <View key={photo.id} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, overflow: "hidden" }}>
-                {photo.isVideo ? (
-                  <Pressable
-                    onPress={() => Linking.openURL(photo.cloudinaryUrl)}
-                    style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 170, justifyContent: "center" }}
-                  >
-                    <Ionicons name="play-circle-outline" size={48} color={COLORS.TEXT_WHITE} />
-                    <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
-                  </Pressable>
-                ) : (
-                  <Image source={{ uri: photo.cloudinaryUrl }} style={{ height: 170, width: "100%" }} />
-                )}
-                <View style={{ padding: 12 }}>
-                  <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
-                    <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "900" }}>
-                      {photo.milestone?.name || photo.project?.name || "Progress update"}
+            {progress.map((photo) => {
+              const media = {
+                url: photo.cloudinaryUrl,
+                isVideo: photo.isVideo,
+                title: photo.milestone?.name || photo.project?.name || "Progress update",
+                caption: photo.caption,
+              };
+
+              return (
+                <View key={photo.id} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, overflow: "hidden" }}>
+                  {photo.isVideo ? (
+                    <Pressable
+                      onPress={() => setViewerMedia(media)}
+                      style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 170, justifyContent: "center" }}
+                    >
+                      <Ionicons name="play-circle-outline" size={48} color={COLORS.TEXT_WHITE} />
+                      <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable onPress={() => setViewerMedia(media)}>
+                      <Image source={{ uri: photo.cloudinaryUrl }} style={{ height: 170, width: "100%" }} />
+                    </Pressable>
+                  )}
+                  <View style={{ padding: 12 }}>
+                    <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "900" }}>
+                        {photo.milestone?.name || photo.project?.name || "Progress update"}
+                      </Text>
+                      <StatusBadge status={photo.reviewStatus || "pending"} />
+                    </View>
+                    <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+                      {photo.caption || "Engineer uploaded a progress photo."}
                     </Text>
-                    <StatusBadge status={photo.reviewStatus || "pending"} />
+                    {photo.supervisorComment ? (
+                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 12, lineHeight: 18, marginTop: 8 }}>
+                        Supervisor: {photo.supervisorComment}
+                      </Text>
+                    ) : null}
                   </View>
-                  <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
-                    {photo.caption || "Engineer uploaded a progress photo."}
-                  </Text>
-                  {photo.supervisorComment ? (
-                    <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 12, lineHeight: 18, marginTop: 8 }}>
-                      Supervisor: {photo.supervisorComment}
-                    </Text>
-                  ) : null}
                 </View>
-              </View>
-            ))}
+              );
+            })}
             {progress.length === 0 ? <Empty text="Reviewed progress updates will appear after the supervisor approves or rejects engineer uploads." /> : null}
           </Panel>
         </View>
       </ScrollView>
+      <ProgressMediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </SafeAreaView>
   );
 }

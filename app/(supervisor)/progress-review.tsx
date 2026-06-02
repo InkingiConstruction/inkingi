@@ -2,18 +2,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Image, Linking, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { SupervisorTopBar } from "@/components/supervisor/supervisor-top-bar";
 import { SupervisorProgressPhoto } from "@/components/supervisor/supervisor-types";
+import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
 export default function ProgressReview() {
   const params = useLocalSearchParams<{ projectId?: string }>();
   const queryClient = useQueryClient();
   const [commentsById, setCommentsById] = useStateMap();
+  const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
 
   const progressQuery = useQuery({
     queryKey: ["supervisor-progress", params.projectId],
@@ -81,19 +83,27 @@ export default function ProgressReview() {
         renderItem={({ item }) => {
           const comment = commentsById[item.id] ?? item.supervisorComment ?? "";
           const rejectedWithoutComment = item.reviewStatus !== "rejected" && !comment.trim();
+          const media = {
+            url: item.cloudinaryUrl,
+            isVideo: item.isVideo,
+            title: item.milestone?.name || item.project?.name || "Project progress",
+            caption: item.caption,
+          };
 
           return (
             <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
               {item.isVideo ? (
                 <Pressable
-                  onPress={() => Linking.openURL(item.cloudinaryUrl)}
+                  onPress={() => setViewerMedia(media)}
                   style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 190, justifyContent: "center" }}
                 >
                   <Ionicons name="play-circle-outline" size={54} color={COLORS.TEXT_WHITE} />
                   <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
                 </Pressable>
               ) : (
-                <Image source={{ uri: item.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 210, width: "100%" }} />
+                <Pressable onPress={() => setViewerMedia(media)}>
+                  <Image source={{ uri: item.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 210, width: "100%" }} />
+                </Pressable>
               )}
 
               <View style={{ padding: 16 }}>
@@ -179,6 +189,7 @@ export default function ProgressReview() {
           );
         }}
       />
+      <ProgressMediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </SafeAreaView>
   );
 }

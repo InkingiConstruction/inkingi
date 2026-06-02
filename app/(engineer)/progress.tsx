@@ -3,12 +3,13 @@ import * as ImagePicker from "expo-image-picker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { EngineerMilestone, EngineerProgressPhoto, EngineerProject } from "@/components/engineer/engineer-types";
+import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
 export default function EngineerProgress() {
   const queryClient = useQueryClient();
@@ -17,6 +18,7 @@ export default function EngineerProgress() {
   const [selectedMilestoneId, setSelectedMilestoneId] = useState("");
   const [caption, setCaption] = useState("");
   const [media, setMedia] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
 
   const projectsQuery = useQuery({
     queryKey: ["engineer-projects"],
@@ -138,10 +140,11 @@ export default function EngineerProgress() {
 
             {progressQuery.isLoading ? <ActivityIndicator color={COLORS.PRIMARY} /> : null}
             {progress.length === 0 && !progressQuery.isLoading ? <Empty text="No progress uploads yet for this project." /> : null}
-            {progress.map((item) => <ProgressCard key={item.id} item={item} />)}
+            {progress.map((item) => <ProgressCard key={item.id} item={item} onOpen={setViewerMedia} />)}
           </>
         )}
       </ScrollView>
+      <ProgressMediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </SafeAreaView>
   );
 }
@@ -173,16 +176,25 @@ function Selector({
   );
 }
 
-function ProgressCard({ item }: { item: EngineerProgressPhoto }) {
+function ProgressCard({ item, onOpen }: { item: EngineerProgressPhoto; onOpen: (media: ProgressMedia) => void }) {
+  const media = {
+    url: item.cloudinaryUrl,
+    isVideo: item.isVideo,
+    title: item.milestone?.name || item.project?.name || "Project progress",
+    caption: item.caption,
+  };
+
   return (
     <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
       {item.isVideo ? (
-        <Pressable onPress={() => Linking.openURL(item.cloudinaryUrl)} style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 180, justifyContent: "center" }}>
+        <Pressable onPress={() => onOpen(media)} style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 180, justifyContent: "center" }}>
           <Ionicons name="play-circle-outline" size={48} color={COLORS.TEXT_WHITE} />
           <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
         </Pressable>
       ) : (
-        <Image source={{ uri: item.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 180, width: "100%" }} />
+        <Pressable onPress={() => onOpen(media)}>
+          <Image source={{ uri: item.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 180, width: "100%" }} />
+        </Pressable>
       )}
       <View style={{ padding: 14 }}>
         <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
