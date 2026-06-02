@@ -1,0 +1,9 @@
+// constants/projectStatus.ts
+
+export const PROJECT_STATUS = {
+  AVAILABLE: "AVAILABLE",
+  INVITED: "INVITED",
+  ACTIVE: "ACTIVE",
+  COMPLETED: "COMPLETED",
+  CANCELLED: "CANCELLED",
+};

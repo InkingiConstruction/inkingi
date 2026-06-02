@@ -11,12 +11,13 @@ export default function RootLayout() {
       ]}
       hiddenRoutes={[
         "assignments",
-        "milestones",
+        // "milestones",
         "boq",
         "rfqs",
         "notifications",
         "profile",
         "settings",
+        "project/[id]",
       ]}
     />
   );

@@ -1,233 +1,1258 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
-import type { ComponentProps } from "react";
-import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { api } from "@/api/api";
-import { ENDPOINTS } from "@/api/endpoints";
-import { COLORS } from "@/constants/colors";
-import { EngineerMilestone, EngineerProject } from "@/components/engineer/engineer-types";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import React, { useMemo, useState } from "react";
+import {
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-export default function EngineerMilestones() {
-  const queryClient = useQueryClient();
-  const params = useLocalSearchParams<{ projectId?: string }>();
-  const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [name, setName] = useState("");
-  const [budgetPercentage, setBudgetPercentage] = useState("");
-  const [durationDays, setDurationDays] = useState("");
-  const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
+type MilestoneStatus =
+  | "pending"
+  | "in_progress"
+  | "pending_supervisor"
+  | "approved";
 
-  const projectsQuery = useQuery({
-    queryKey: ["engineer-projects"],
-    queryFn: async () => (await api.get<EngineerProject[]>(ENDPOINTS.PROJECTS.LIST)).data,
-    refetchOnMount: "always",
-  });
+type Project = {
+  id: string;
+  name: string;
+  clientName: string;
+  location: string;
+  budget: number;
+  coverImage: string;
+};
 
-  const projects = (projectsQuery.data || []).filter((project) => project.engineerId);
-  const activeProjectId = selectedProjectId || params.projectId || projects[0]?.id || "";
+type BoqItem = {
+  id: string;
+  category: string;
+  material: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+};
 
-  const milestonesQuery = useQuery({
-    queryKey: ["engineer-milestones", activeProjectId],
-    enabled: Boolean(activeProjectId),
-    queryFn: async () => {
-      const response = await api.get<EngineerMilestone[]>(ENDPOINTS.MILESTONES.LIST, {
-        params: { projectId: activeProjectId },
-      });
-      return response.data;
+type Milestone = {
+  id: string;
+  name: string;
+  percentage: number;
+  durationDays: number;
+  status: MilestoneStatus;
+
+  project: Project;
+
+  boqItems: BoqItem[];
+
+  completionPhotos: string[];
+
+  completionNotes: string;
+};
+
+const boqCategories = [
+  "Concrete",
+  "Steel",
+  "Timber",
+  "Finishes",
+  "Labor",
+  "Equipment",
+];
+
+const units = [
+  "bags",
+  "cubic meters",
+  "pieces",
+  "lumpsum",
+];
+
+export default function MilestonesScreen() {
+  const [showBoqModal, setShowBoqModal] =
+    useState(false);
+
+  const [showPaymentModal, setShowPaymentModal] =
+    useState(false);
+
+  const [selectedMilestone, setSelectedMilestone] =
+    useState<Milestone | null>(null);
+
+  const [milestones, setMilestones] = useState<
+    Milestone[]
+  >([
+    {
+      id: "1",
+      name: "Foundation Works",
+      percentage: 20,
+      durationDays: 14,
+      status: "in_progress",
+
+      project: {
+        id: "p1",
+        name: "Luxury Villa Construction",
+        clientName: "John Doe",
+        location: "Nyarutarama, Kigali",
+        budget: 85000000,
+        coverImage:
+          "https://picsum.photos/600/400",
+      },
+
+      boqItems: [],
+      completionPhotos: [],
+      completionNotes: "",
     },
-  });
 
-  const milestones = milestonesQuery.data || [];
-  const nextOrder = milestones.length + 1;
-  const totalBudget = milestones.reduce((sum, milestone) => sum + Number(milestone.budgetPercentage || 0), 0);
+    {
+      id: "2",
+      name: "Wall Construction",
+      percentage: 35,
+      durationDays: 25,
+      status: "pending",
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeProjectId) throw new Error("Select an accepted project first.");
-      if (!name.trim() || !budgetPercentage.trim()) throw new Error("Name and budget percentage are required.");
-      return api.post(ENDPOINTS.MILESTONES.LIST, {
-        projectId: activeProjectId,
-        name: name.trim(),
-        budgetPercentage: Number(budgetPercentage),
-        durationDays: durationDays ? Number(durationDays) : undefined,
-        acceptanceCriteria: acceptanceCriteria.trim() || undefined,
-        order: nextOrder,
-      });
-    },
-    onSuccess: async () => {
-      setName("");
-      setBudgetPercentage("");
-      setDurationDays("");
-      setAcceptanceCriteria("");
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["engineer-milestones", activeProjectId] }),
-        queryClient.invalidateQueries({ queryKey: ["engineer-projects"] }),
-      ]);
-      Alert.alert("Milestone created", "The milestone is ready for BOQ items and progress tracking.");
-    },
-    onError: (error) => Alert.alert("Create failed", error instanceof Error ? error.message : "Try again."),
-  });
+      project: {
+        id: "p1",
+        name: "Luxury Villa Construction",
+        clientName: "John Doe",
+        location: "Nyarutarama, Kigali",
+        budget: 85000000,
+        coverImage:
+          "https://picsum.photos/601/400",
+      },
 
-  const submitMutation = useMutation({
-    mutationFn: (id: string) => api.put(ENDPOINTS.MILESTONES.DETAIL(id), { status: "pending_supervisor" }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["engineer-milestones", activeProjectId] }),
-        queryClient.invalidateQueries({ queryKey: ["supervisor-milestones"] }),
-      ]);
-      Alert.alert("Sent to supervisor", "The supervisor can now review this milestone.");
+      boqItems: [],
+      completionPhotos: [],
+      completionNotes: "",
     },
-    onError: (error) => Alert.alert("Submit failed", error instanceof Error ? error.message : "Try again."),
-  });
+  ]);
+
+  // BOQ STATES
+  const [category, setCategory] =
+    useState("Concrete");
+
+  const [material, setMaterial] =
+    useState("");
+
+  const [quantity, setQuantity] =
+    useState("");
+
+  const [unit, setUnit] =
+    useState("bags");
+
+  const [unitPrice, setUnitPrice] =
+    useState("");
+
+  // PAYMENT STATES
+  const [workComplete, setWorkComplete] =
+    useState(false);
+
+  const [completionPhotos, setCompletionPhotos] =
+    useState<string[]>([]);
+
+  const [completionNotes, setCompletionNotes] =
+    useState("");
+
+  const calculatedTotal = useMemo(() => {
+    return (
+      (Number(quantity) || 0) *
+      (Number(unitPrice) || 0)
+    );
+  }, [quantity, unitPrice]);
+
+  const openBoqModal = (
+    milestone: Milestone
+  ) => {
+    setSelectedMilestone(milestone);
+    setShowBoqModal(true);
+  };
+
+  const openPaymentModal = (
+    milestone: Milestone
+  ) => {
+    setSelectedMilestone(milestone);
+    setShowPaymentModal(true);
+  };
+
+  const saveBoqItem = () => {
+    if (
+      !material ||
+      !quantity ||
+      !unitPrice
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please fill all fields"
+      );
+
+      return;
+    }
+
+    if (!selectedMilestone) return;
+
+    const newItem: BoqItem = {
+      id: Date.now().toString(),
+      category,
+      material,
+      quantity: Number(quantity),
+      unit,
+      unitPrice: Number(unitPrice),
+      total: calculatedTotal,
+    };
+
+    setMilestones((prev) =>
+      prev.map((m) =>
+        m.id === selectedMilestone.id
+          ? {
+              ...m,
+              boqItems: [
+                ...m.boqItems,
+                newItem,
+              ],
+            }
+          : m
+      )
+    );
+
+    setMaterial("");
+    setQuantity("");
+    setUnitPrice("");
+
+    Alert.alert(
+      "Success",
+      "BOQ item added successfully"
+    );
+
+    setShowBoqModal(false);
+  };
+
+  const uploadCompletionPhoto =
+    async () => {
+      try {
+        const permission =
+          await ImagePicker.requestCameraPermissionsAsync();
+
+        if (
+          permission.status !== "granted"
+        ) {
+          Alert.alert(
+            "Permission required",
+            "Camera permission required"
+          );
+
+          return;
+        }
+
+        if (
+          completionPhotos.length >= 10
+        ) {
+          Alert.alert(
+            "Limit reached",
+            "Maximum 10 photos allowed"
+          );
+
+          return;
+        }
+
+        const result =
+          await ImagePicker.launchCameraAsync(
+            {
+              mediaTypes:
+                ImagePicker.MediaTypeOptions.Images,
+              quality: 1,
+            }
+          );
+
+        if (result.canceled) return;
+
+        const imageUri =
+          result.assets[0].uri;
+
+        /**
+         * CLOUDINARY UPLOAD PLACEHOLDER
+         */
+
+        setCompletionPhotos((prev) => [
+          ...prev,
+          imageUri,
+        ]);
+      } catch (error) {
+        Alert.alert(
+          "Error",
+          "Failed to upload image"
+        );
+      }
+    };
+
+  const submitForReview = () => {
+    if (!selectedMilestone) return;
+
+    if (!workComplete) {
+      Alert.alert(
+        "Validation",
+        "Please confirm work completion"
+      );
+
+      return;
+    }
+
+    if (
+      completionPhotos.length < 5
+    ) {
+      Alert.alert(
+        "Validation",
+        "Minimum 5 completion photos required"
+      );
+
+      return;
+    }
+
+    setMilestones((prev) =>
+      prev.map((m) =>
+        m.id === selectedMilestone.id
+          ? {
+              ...m,
+              status:
+                "pending_supervisor",
+              completionPhotos,
+              completionNotes,
+            }
+          : m
+      )
+    );
+
+    Alert.alert(
+      "Submitted",
+      "Milestone submitted for supervisor review"
+    );
+
+    setCompletionPhotos([]);
+    setCompletionNotes("");
+    setWorkComplete(false);
+
+    setShowPaymentModal(false);
+  };
+
+  const getStatusColor = (
+    status: MilestoneStatus
+  ) => {
+    switch (status) {
+      case "pending":
+        return "#F59E0B";
+
+      case "in_progress":
+        return "#2563EB";
+
+      case "pending_supervisor":
+        return "#7C3AED";
+
+      case "approved":
+        return "#059669";
+
+      default:
+        return "#64748B";
+    }
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}>
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>Milestones</Text>
-          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 14, lineHeight: 20 }}>
-            Create project stages and send completed work to the supervisor for review.
-          </Text>
-        </View>
+    <>
+      <ScrollView
+        style={styles.container}
+      >
+        <Text style={styles.pageTitle}>
+          Project Milestones
+        </Text>
 
-        {projectsQuery.isLoading ? (
-          <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 40 }} />
-        ) : projects.length === 0 ? (
-          <Empty text="No accepted engineer projects found. Accept an assignment first." />
-        ) : (
-          <>
-            <ProjectSelector projects={projects} activeProjectId={activeProjectId} onSelect={setSelectedProjectId} />
+        {milestones.map(
+          (milestone) => (
+            <View
+              key={milestone.id}
+              style={styles.card}
+            >
+              {/* PROJECT DETAILS */}
 
-            <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 16, gap: 10 }}>
-              <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900" }}>New milestone</Text>
-              <Input placeholder="Milestone name" value={name} onChangeText={setName} />
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Input keyboardType="numeric" placeholder="Budget %" value={budgetPercentage} onChangeText={setBudgetPercentage} />
-                <Input keyboardType="numeric" placeholder="Days" value={durationDays} onChangeText={setDurationDays} />
-              </View>
-              <Input placeholder="Acceptance criteria" value={acceptanceCriteria} onChangeText={setAcceptanceCriteria} />
-              <Pressable disabled={createMutation.isPending} onPress={() => createMutation.mutate()} style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY, borderRadius: 8, paddingVertical: 13 }}>
-                <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>{createMutation.isPending ? "Creating..." : "Create milestone"}</Text>
-              </Pressable>
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Stat label="Milestones" value={milestones.length} />
-              <Stat label="Budget planned" value={`${totalBudget}%`} />
-            </View>
-
-            {milestonesQuery.isLoading ? <ActivityIndicator color={COLORS.PRIMARY} /> : null}
-            {milestones.length === 0 && !milestonesQuery.isLoading ? <Empty text="No milestones yet for this project." /> : null}
-            {milestones.map((milestone) => (
-              <MilestoneCard
-                key={milestone.id}
-                milestone={milestone}
-                loading={submitMutation.isPending}
-                onSubmit={() => submitMutation.mutate(milestone.id)}
+              <Image
+                source={{
+                  uri:
+                    milestone.project
+                      .coverImage,
+                }}
+                style={
+                  styles.projectImage
+                }
+                contentFit="cover"
               />
-            ))}
-          </>
+
+              <Text
+                style={
+                  styles.projectName
+                }
+              >
+                {
+                  milestone.project
+                    .name
+                }
+              </Text>
+
+              <Text
+                style={
+                  styles.projectInfo
+                }
+              >
+                Client:{" "}
+                {
+                  milestone.project
+                    .clientName
+                }
+              </Text>
+
+              <Text
+                style={
+                  styles.projectInfo
+                }
+              >
+                Location:{" "}
+                {
+                  milestone.project
+                    .location
+                }
+              </Text>
+
+              <Text
+                style={
+                  styles.projectInfo
+                }
+              >
+                Budget:{" "}
+                {milestone.project.budget.toLocaleString()}{" "}
+                RWF
+              </Text>
+
+              {/* MILESTONE */}
+
+              <View
+                style={
+                  styles.headerRow
+                }
+              >
+                <View>
+                  <Text
+                    style={
+                      styles.milestoneTitle
+                    }
+                  >
+                    {
+                      milestone.name
+                    }
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.subText
+                    }
+                  >
+                    {
+                      milestone.percentage
+                    }
+                    % •{" "}
+                    {
+                      milestone.durationDays
+                    }{" "}
+                    days
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor:
+                        getStatusColor(
+                          milestone.status
+                        ),
+                    },
+                  ]}
+                >
+                  <Text
+                    style={
+                      styles.statusText
+                    }
+                  >
+                    {
+                      milestone.status
+                    }
+                  </Text>
+                </View>
+              </View>
+
+              {/* BOQ */}
+
+              <View
+                style={
+                  styles.section
+                }
+              >
+                <Text
+                  style={
+                    styles.sectionTitle
+                  }
+                >
+                  Bill of Quantities
+                </Text>
+
+                {milestone.boqItems
+                  .length === 0 ? (
+                  <Text
+                    style={
+                      styles.emptyText
+                    }
+                  >
+                    No BOQ items yet
+                  </Text>
+                ) : (
+                  milestone.boqItems.map(
+                    (
+                      item
+                    ) => (
+                      <View
+                        key={
+                          item.id
+                        }
+                        style={
+                          styles.boqCard
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.boqMaterial
+                          }
+                        >
+                          {
+                            item.material
+                          }
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.boqInfo
+                          }
+                        >
+                          {
+                            item.category
+                          }
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.boqInfo
+                          }
+                        >
+                          Qty:{" "}
+                          {
+                            item.quantity
+                          }{" "}
+                          {
+                            item.unit
+                          }
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.boqInfo
+                          }
+                        >
+                          Unit Price:{" "}
+                          {item.unitPrice.toLocaleString()}{" "}
+                          RWF
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.totalText
+                          }
+                        >
+                          Total:{" "}
+                          {item.total.toLocaleString()}{" "}
+                          RWF
+                        </Text>
+                      </View>
+                    )
+                  )
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={
+                  styles.primaryButton
+                }
+                onPress={() =>
+                  openBoqModal(
+                    milestone
+                  )
+                }
+              >
+                <Text
+                  style={
+                    styles.primaryText
+                  }
+                >
+                  + Create BOQ
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={
+                  styles.secondaryButton
+                }
+                onPress={() =>
+                  openPaymentModal(
+                    milestone
+                  )
+                }
+              >
+                <Text
+                  style={
+                    styles.secondaryText
+                  }
+                >
+                  Request Payment
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )
         )}
       </ScrollView>
-    </SafeAreaView>
-  );
-}
 
-function ProjectSelector({
-  projects,
-  activeProjectId,
-  onSelect,
-}: {
-  projects: EngineerProject[];
-  activeProjectId: string;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-      {projects.map((project) => {
-        const active = project.id === activeProjectId;
-        return (
-          <Pressable
-            key={project.id}
-            onPress={() => onSelect(project.id)}
-            style={{
-              backgroundColor: active ? COLORS.PRIMARY : COLORS.SURFACE,
-              borderColor: active ? COLORS.PRIMARY : COLORS.BORDER_LIGHT,
-              borderRadius: 8,
-              borderWidth: 1,
-              maxWidth: 220,
-              padding: 12,
-            }}
-          >
-            <Text numberOfLines={1} style={{ color: active ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{project.name}</Text>
-            <Text numberOfLines={1} style={{ color: active ? COLORS.TEXT_WHITE : COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>{project.status}</Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
+      {/* BOQ MODAL */}
 
-function MilestoneCard({ milestone, loading, onSubmit }: { milestone: EngineerMilestone; loading: boolean; onSubmit: () => void }) {
-  const canSubmit = ["pending", "active", "revision_required"].includes(milestone.status);
-  return (
-    <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 16 }}>
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Ionicons name="flag-outline" size={22} color={COLORS.PRIMARY} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900" }}>{milestone.name}</Text>
-          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4 }}>
-            {milestone.budgetPercentage}% budget • {milestone._count?.boqItems || 0} BOQ items
-          </Text>
+      <Modal
+        visible={showBoqModal}
+        transparent
+        animationType="slide"
+      >
+        <View style={styles.overlay}>
+          <View style={styles.modal}>
+            <View
+              style={
+                styles.modalHeader
+              }
+            >
+              <Text
+                style={
+                  styles.modalTitle
+                }
+              >
+                Add BOQ Item
+              </Text>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setShowBoqModal(
+                    false
+                  )
+                }
+              >
+                <Text
+                  style={
+                    styles.close
+                  }
+                >
+                  ✕
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              <Text
+                style={
+                  styles.label
+                }
+              >
+                Category
+              </Text>
+
+              <ScrollView horizontal>
+                {boqCategories.map(
+                  (cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() =>
+                        setCategory(
+                          cat
+                        )
+                      }
+                      style={[
+                        styles.categoryBtn,
+                        category ===
+                          cat && {
+                          backgroundColor:
+                            "#0F766E",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryText,
+                          category ===
+                            cat && {
+                            color:
+                              "#fff",
+                          },
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                )}
+              </ScrollView>
+
+              <TextInput
+                placeholder="Material name"
+                value={material}
+                onChangeText={
+                  setMaterial
+                }
+                style={styles.input}
+              />
+
+              <TextInput
+                placeholder="Quantity"
+                keyboardType="numeric"
+                value={quantity}
+                onChangeText={
+                  setQuantity
+                }
+                style={styles.input}
+              />
+
+              <Text
+                style={
+                  styles.label
+                }
+              >
+                Unit
+              </Text>
+
+              <ScrollView horizontal>
+                {units.map((u) => (
+                  <TouchableOpacity
+                    key={u}
+                    onPress={() =>
+                      setUnit(u)
+                    }
+                    style={[
+                      styles.categoryBtn,
+                      unit === u && {
+                        backgroundColor:
+                          "#0F766E",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        unit === u && {
+                          color:
+                            "#fff",
+                        },
+                      ]}
+                    >
+                      {u}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <TextInput
+                placeholder="Unit price (RWF)"
+                keyboardType="numeric"
+                value={unitPrice}
+                onChangeText={
+                  setUnitPrice
+                }
+                style={styles.input}
+              />
+
+              <View
+                style={
+                  styles.totalBox
+                }
+              >
+                <Text
+                  style={
+                    styles.totalLabel
+                  }
+                >
+                  Auto Calculated
+                  Total
+                </Text>
+
+                <Text
+                  style={
+                    styles.totalAmount
+                  }
+                >
+                  {calculatedTotal.toLocaleString()}{" "}
+                  RWF
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={
+                  styles.primaryButton
+                }
+                onPress={
+                  saveBoqItem
+                }
+              >
+                <Text
+                  style={
+                    styles.primaryText
+                  }
+                >
+                  Save BOQ Item
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </View>
-        <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>{milestone.status}</Text>
-      </View>
-      {milestone.acceptanceCriteria ? (
-        <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 19, marginTop: 10 }}>{milestone.acceptanceCriteria}</Text>
-      ) : null}
-      {canSubmit ? (
-        <Pressable disabled={loading} onPress={onSubmit} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, marginTop: 12, paddingVertical: 12 }}>
-          <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>{loading ? "Sending..." : "Send to supervisor"}</Text>
-        </Pressable>
-      ) : null}
-    </View>
+      </Modal>
+
+      {/* PAYMENT MODAL */}
+
+      <Modal
+        visible={showPaymentModal}
+        transparent
+        animationType="slide"
+      >
+        <View style={styles.overlay}>
+          <View style={styles.modal}>
+            <View
+              style={
+                styles.modalHeader
+              }
+            >
+              <Text
+                style={
+                  styles.modalTitle
+                }
+              >
+                Request Payment
+              </Text>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setShowPaymentModal(
+                    false
+                  )
+                }
+              >
+                <Text
+                  style={
+                    styles.close
+                  }
+                >
+                  ✕
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={
+                styles.checkboxRow
+              }
+              onPress={() =>
+                setWorkComplete(
+                  !workComplete
+                )
+              }
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  workComplete &&
+                    styles.checkboxActive,
+                ]}
+              />
+
+              <Text
+                style={
+                  styles.checkboxText
+                }
+              >
+                Confirm work 100%
+                complete
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={
+                styles.primaryButton
+              }
+              onPress={
+                uploadCompletionPhoto
+              }
+            >
+              <Text
+                style={
+                  styles.primaryText
+                }
+              >
+                Upload Completion
+                Photos
+              </Text>
+            </TouchableOpacity>
+
+            <Text
+              style={
+                styles.photoCount
+              }
+            >
+              Uploaded Photos:{" "}
+              {
+                completionPhotos.length
+              }
+              /10
+            </Text>
+
+            <View
+              style={
+                styles.mediaGrid
+              }
+            >
+              {completionPhotos.map(
+                (photo, index) => (
+                  <Image
+                    key={index}
+                    source={{
+                      uri: photo,
+                    }}
+                    style={
+                      styles.photo
+                    }
+                  />
+                )
+              )}
+            </View>
+
+            <TextInput
+              placeholder="Completion notes (optional)"
+              multiline
+              value={
+                completionNotes
+              }
+              onChangeText={
+                setCompletionNotes
+              }
+              style={
+                styles.multiline
+              }
+            />
+
+            <TouchableOpacity
+              style={
+                styles.submitButton
+              }
+              onPress={
+                submitForReview
+              }
+            >
+              <Text
+                style={
+                  styles.primaryText
+                }
+              >
+                Submit for Review
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
-function Input(props: ComponentProps<typeof TextInput>) {
-  return (
-    <TextInput
-      {...props}
-      placeholderTextColor={COLORS.TEXT_LIGHT}
-      style={{
-        backgroundColor: COLORS.MUTED,
-        borderColor: COLORS.BORDER_LIGHT,
-        borderRadius: 8,
-        borderWidth: 1,
-        color: COLORS.TEXT_PRIMARY,
-        flex: 1,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-      }}
-    />
-  );
-}
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F6F7FB",
+    padding: 16,
+    paddingTop: 44,
+  },
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, flex: 1, padding: 14 }}>
-      <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>{label}</Text>
-      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 4 }}>{value}</Text>
-    </View>
-  );
-}
+  pageTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    marginBottom: 18,
+    color: "#111827",
+  },
 
-function Empty({ text }: { text: string }) {
-  return (
-    <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 18 }}>
-      <Text style={{ color: COLORS.TEXT_SECONDARY, textAlign: "center" }}>{text}</Text>
-    </View>
-  );
-}
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 18,
+  },
+
+  projectImage: {
+    width: "100%",
+    height: 180,
+    borderRadius: 18,
+    marginBottom: 14,
+  },
+
+  projectName: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 6,
+  },
+
+  projectInfo: {
+    color: "#64748B",
+    marginBottom: 4,
+  },
+
+  headerRow: {
+    flexDirection: "row",
+    justifyContent:
+      "space-between",
+    alignItems: "center",
+    marginTop: 18,
+  },
+
+  milestoneTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+  },
+
+  subText: {
+    color: "#64748B",
+    marginTop: 6,
+  },
+
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 100,
+  },
+
+  statusText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+
+  section: {
+    marginTop: 18,
+  },
+
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 12,
+    color: "#111827",
+  },
+
+  emptyText: {
+    color: "#64748B",
+  },
+
+  boqCard: {
+    backgroundColor: "#F8FAFC",
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 10,
+  },
+
+  boqMaterial: {
+    fontWeight: "800",
+    marginBottom: 6,
+    color: "#111827",
+  },
+
+  boqInfo: {
+    color: "#64748B",
+    marginBottom: 3,
+  },
+
+  totalText: {
+    marginTop: 8,
+    color: "#0F766E",
+    fontWeight: "800",
+  },
+
+  primaryButton: {
+    backgroundColor: "#0F766E",
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 14,
+  },
+
+  submitButton: {
+    backgroundColor: "#7C3AED",
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 14,
+  },
+
+  primaryText: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+
+  secondaryButton: {
+    borderWidth: 1.5,
+    borderColor: "#0F766E",
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    marginTop: 12,
+  },
+
+  secondaryText: {
+    color: "#0F766E",
+    fontWeight: "800",
+  },
+
+  overlay: {
+    flex: 1,
+    backgroundColor:
+      "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+
+  modal: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    maxHeight: "92%",
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent:
+      "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F766E",
+  },
+
+  close: {
+    fontSize: 20,
+    fontWeight: "900",
+  },
+
+  label: {
+    marginBottom: 10,
+    fontWeight: "700",
+    color: "#475569",
+  },
+
+  input: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+
+  multiline: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 14,
+    minHeight: 120,
+    textAlignVertical: "top",
+    marginTop: 14,
+  },
+
+  categoryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 100,
+    backgroundColor: "#E2E8F0",
+    marginRight: 10,
+    marginBottom: 16,
+  },
+
+  categoryText: {
+    fontWeight: "700",
+    color: "#334155",
+  },
+
+  totalBox: {
+    backgroundColor: "#F0FDFA",
+    borderRadius: 16,
+    padding: 18,
+    marginTop: 8,
+  },
+
+  totalLabel: {
+    color: "#64748B",
+    marginBottom: 6,
+  },
+
+  totalAmount: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#0F766E",
+  },
+
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    marginRight: 12,
+  },
+
+  checkboxActive: {
+    backgroundColor: "#0F766E",
+    borderColor: "#0F766E",
+  },
+
+  checkboxText: {
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  photoCount: {
+    marginTop: 12,
+    color: "#64748B",
+    fontWeight: "700",
+  },
+
+  mediaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: 14,
+  },
+
+  photo: {
+    width: "48%",
+    height: 110,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+});
