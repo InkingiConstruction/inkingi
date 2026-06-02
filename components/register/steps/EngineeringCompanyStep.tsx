@@ -67,7 +67,7 @@ export default function EngineeringCompanyStep({ data, onUpdate, onNext, onPrev 
       <View style={styles.header}>
         <Text style={styles.title}>Company Profile</Text>
         <Text style={styles.subtitle}>
-          Please enter your registered firm's details. These will be verified with RDB registry.
+          Please enter your registered firm details. These will be verified with RDB registry.
         </Text>
       </View>
 

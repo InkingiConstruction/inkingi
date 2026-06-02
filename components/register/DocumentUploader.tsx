@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/colors';
+import { api } from '@/api/api';
+import { ENDPOINTS } from '@/api/endpoints';
 
 export interface Document {
   id: string;
@@ -21,6 +23,8 @@ export interface Document {
   uploaded: boolean;
   progress?: number;
   url?: string;
+  cloudinaryUrl?: string;
+  publicId?: string;
 }
 
 interface DocumentUploaderProps {
@@ -133,22 +137,36 @@ export default function DocumentUploader({
     setDocuments(updatedDocs);
     
     try {
-      // Simulate upload progress
-      for (let i = 10; i <= 100; i += 20) {
-        await new Promise(resolve => setTimeout(resolve, 150));
+      for (let i = 10; i <= 70; i += 20) {
+        await new Promise(resolve => setTimeout(resolve, 80));
         setDocuments(prev =>
           prev.map(doc =>
             doc.id === documentId ? { ...doc, progress: i } : doc
           )
         );
       }
-      
-      // Simulate successful Cloudinary/S3 url output
+
+      const formData = new FormData();
+      formData.append('type', documentType);
+      formData.append('files', {
+        uri,
+        name: fileName,
+        type: 'image/jpeg',
+      } as any);
+
+      const response = await api.post(ENDPOINTS.KYC.DOCUMENTS, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const uploaded = response.data?.document;
       const completedDocument = {
         ...newDocument,
+        id: uploaded?.id || documentId,
         uploaded: true,
         progress: 100,
-        url: `https://api.inkingipro.com/uploads/${documentId}_${fileName}`,
+        url: uploaded?.cloudinaryUrl || uri,
+        cloudinaryUrl: uploaded?.cloudinaryUrl,
+        publicId: uploaded?.publicId,
       };
       
       setDocuments(prev =>

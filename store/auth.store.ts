@@ -17,6 +17,10 @@ export interface User {
   role?: UserRole;
   kycStatus?: string | null;
   kycRejectionReason?: string | null;
+  roleSpecific?: Record<string, unknown> | null;
+  registrationDocuments?: unknown[] | null;
+  selfieUrl?: string | null;
+  registrationSubmittedAt?: string | null;
   notificationPrefs?: Record<string, boolean> | null;
   avatar?: string | null;
   image?: string | null;
@@ -29,7 +33,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (name: string, email: string, password: string, role?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, role?: string, phoneNumber?: string) => Promise<void>;
   fetchUser: () => Promise<void>;
   updateProfile: (data: {
     name: string;
@@ -107,7 +111,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     void logoutRequest;
   },
 
-  register: async (name, email, password, role = "client") => {
+  register: async (name, email, password, role = "client", phoneNumber) => {
     set({ loading: true });
     try {
       const username =
@@ -118,6 +122,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         username,
         password,
         role,
+        phoneNumber,
       });
       if (response.data.token) {
         await setAuthToken(response.data.token);

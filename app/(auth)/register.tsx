@@ -148,8 +148,8 @@ export default function RegisterFlow() {
       // Create account after BasicInfoStep
       setLoading(true);
       try {
-        const { fullName, email, password } = data.basic;
-        if (password) await storeRegister(fullName, email, password, role);
+        const { fullName, email, password, phoneNumber } = data.basic;
+        if (password) await storeRegister(fullName, email, password, role, phoneNumber);
         handleUpdate({ currentStep: 1 });
       } catch (err: any) {
         alert(err?.response?.data?.message || err?.message || 'Registration failed. Email may already exist.');
@@ -179,8 +179,9 @@ export default function RegisterFlow() {
         name: data.basic.fullName,
         phoneNumber: data.basic.phoneNumber,
         roleSpecific: data.roleSpecific,
+        selfieUrl: data.roleSpecific?.selfieUri,
         documents: data.documents,
-        kycStatus: 'pending',
+        kycStatus: 'submitted',
       });
       await safeRemoveItem(STORAGE_KEY);
       handleUpdate({ currentStep: currentStep + 1 });
@@ -238,7 +239,7 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      // 2: <PhoneVerificationStep {...props} />,
+      2: <PhoneVerificationStep {...props} />,
       3: <ClientKYSStep {...props} />,
       4: <ReviewSubmitStep {...props} />,
       5: <VerificationPendingStep />,
@@ -250,7 +251,7 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      // 2: <PhoneVerificationStep {...props} />,
+      2: <PhoneVerificationStep {...props} />,
       3: <EngineerTypeStep {...props} />,
       4: isCompany ? <EngineeringCompanyStep {...props} /> : <IndividualEngineerStep {...props} />,
       5: <DocumentUploadStep {...props} />,
@@ -264,7 +265,7 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      // 2: <PhoneVerificationStep {...props} />,
+      2: <PhoneVerificationStep {...props} />,
       3: <SupervisorTypeStep {...props} />,
       4: isCompany ? <InspectionCompanyStep {...props} /> : <IndependentSupervisorStep {...props} />,
       5: <DocumentUploadStep {...props} />,
@@ -277,7 +278,7 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      // 2: <PhoneVerificationStep {...props} />,
+      2: <PhoneVerificationStep {...props} />,
       3: <SupplierInfoStep {...props} />,
       4: <SupplierCategoriesStep {...props} />,
       5: <SupplierCoverageStep {...props} />,

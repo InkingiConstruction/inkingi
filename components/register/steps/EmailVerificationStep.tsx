@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 import OTPInput from '../OTPInput';
@@ -135,7 +135,7 @@ export default function EmailVerificationStep({ data, onUpdate, onNext, onPrev }
 
       {/* Resend Action */}
       <View style={styles.resendContainer}>
-        <Text style={styles.resendLabel}>Didn't receive the code? </Text>
+        <Text style={styles.resendLabel}>Did not receive the code? </Text>
         <Pressable onPress={handleResend} disabled={resending}>
           {resending ? (
             <ActivityIndicator size="small" color={COLORS.PRIMARY} />

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 import OTPInput from '../OTPInput';
 import { api } from '@/api/api';
+import { ENDPOINTS } from '@/api/endpoints';
 import { createStyles } from '@/utils/createStyles';
 
 interface PhoneVerificationStepProps {
@@ -32,10 +33,8 @@ export default function PhoneVerificationStep({ data, onUpdate, onNext, onPrev }
     setMessage('');
     
     try {
-      // Endpoint for verifying phone number
-      await api.post('/auth/verify-phone', {
+      await api.patch(ENDPOINTS.KYC.AUTO_VERIFY_PHONE, {
         phoneNumber: phoneNumber.trim(),
-        otp: otp.trim(),
       });
 
       setMessage('Phone number verified successfully!');
@@ -67,10 +66,7 @@ export default function PhoneVerificationStep({ data, onUpdate, onNext, onPrev }
     setMessage('');
     
     try {
-      await api.post('/auth/resend-phone-otp', {
-        phoneNumber: phoneNumber.trim(),
-      });
-      setMessage('A new OTP has been sent via SMS.');
+      setMessage('Use any 6 digits to continue while SMS OTP is being prepared.');
     } catch (err: any) {
       console.error('Resend phone OTP error:', err);
       setMessage('Mock SMS OTP sent successfully! (Use 123456 to bypass)');
@@ -134,7 +130,7 @@ export default function PhoneVerificationStep({ data, onUpdate, onNext, onPrev }
 
       {/* Resend Action */}
       <View style={styles.resendContainer}>
-        <Text style={styles.resendLabel}>Didn't receive the code? </Text>
+        <Text style={styles.resendLabel}>Did not receive the code? </Text>
         <Pressable onPress={handleResend} disabled={resending}>
           {resending ? (
             <ActivityIndicator size="small" color={COLORS.PRIMARY} />

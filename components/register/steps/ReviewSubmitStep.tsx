@@ -154,7 +154,7 @@ export default function ReviewSubmitStep({ data, onPrev, onSubmit, loading }: Re
           {agreeTerms && <Ionicons name="checkmark" size={14} color="#FFF" />}
         </View>
         <Text style={styles.termsLabel}>
-          I confirm that all entered details are accurate and represent legal information. I agree to InkingiPro's Escrow and Platform Terms of Service.
+          I confirm that all entered details are accurate and represent legal information. I agree to InkingiPro Escrow and Platform Terms of Service.
         </Text>
       </Pressable>
 

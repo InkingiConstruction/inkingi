@@ -36,6 +36,11 @@ export const ENDPOINTS = {
     SUPERVISORS: "/users/supervisors",
     SUPPLIERS: "/users/suppliers",
   },
+  KYC: {
+    DOCUMENTS: "/kyc/documents",
+    STATUS: "/kyc/status",
+    AUTO_VERIFY_PHONE: "/kyc/auto-verify-phone",
+  },
   MILESTONES: {
     LIST: "/milestones",
     DETAIL: (id: string) => `/milestones/${id}`,
