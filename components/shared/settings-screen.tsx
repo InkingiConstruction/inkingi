@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { Pressable, ScrollView, Switch, Text, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -13,9 +13,16 @@ type Prefs = {
   sms: boolean;
 };
 
+const LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'rw', name: 'Kinyarwanda', flag: '🇷🇼' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+];
+
 export function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
   const [prefs, setPrefs] = useState<Prefs>({ push: true, email: true, sms: false });
+  const [language, setLanguage] = useState<'en' | 'rw' | 'fr'>('en');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -45,14 +52,73 @@ export function SettingsScreen() {
     }
   };
 
+  const getFirstLetter = () => {
+    if (user?.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return "U";
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
-        <View style={{ gap: 6, marginBottom: 22 }}>
-          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 28, fontWeight: "900" }}>
-            Settings
+        {/* Centered Profile Section */}
+        <View style={{ alignItems: "center", marginBottom: 28, marginTop: 10 }}>
+          <View
+            style={{
+              width: 90,
+              height: 90,
+              borderRadius: 45,
+              backgroundColor: COLORS.PRIMARY_LIGHT,
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 3,
+              borderColor: COLORS.PRIMARY,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 10,
+              elevation: 4,
+              marginBottom: 14,
+              overflow: "hidden",
+            }}
+          >
+            {user?.avatar || user?.image ? (
+              <Image
+                source={{ uri: user.avatar || user.image || "" }}
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={{ fontSize: 36, fontWeight: "bold", color: COLORS.PRIMARY_DARK }}>
+                {getFirstLetter()}
+              </Text>
+            )}
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: "700", color: COLORS.TEXT_PRIMARY }}>
+            {user?.email}
           </Text>
-          <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20 }}>
+          <View
+            style={{
+              marginTop: 6,
+              backgroundColor: COLORS.PRIMARY_LIGHT,
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 12,
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "800", color: COLORS.PRIMARY_DARK, textTransform: "capitalize" }}>
+              {user?.role || "user"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Notifications Section */}
+        <View style={{ gap: 6, marginBottom: 12 }}>
+          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900" }}>
+            Notifications
+          </Text>
+          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13 }}>
             Control how Inkingi sends project and account updates.
           </Text>
         </View>
@@ -64,6 +130,7 @@ export function SettingsScreen() {
             borderRadius: 18,
             borderWidth: 1,
             overflow: "hidden",
+            marginBottom: 24,
           }}
         >
           <SettingRow
@@ -87,6 +154,39 @@ export function SettingsScreen() {
             value={prefs.sms}
             onValueChange={(sms) => setPrefs((current) => ({ ...current, sms }))}
           />
+        </View>
+
+        {/* App Language Section */}
+        <View style={{ gap: 6, marginBottom: 12 }}>
+          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900" }}>
+            App Language
+          </Text>
+          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13 }}>
+            Select your preferred interface language.
+          </Text>
+        </View>
+
+        <View
+          style={{
+            backgroundColor: COLORS.SURFACE,
+            borderColor: COLORS.BORDER_LIGHT,
+            borderRadius: 18,
+            borderWidth: 1,
+            overflow: "hidden",
+            marginBottom: 20,
+          }}
+        >
+          {LANGUAGES.map((lang, index) => (
+            <LanguageRow
+              key={lang.code}
+              code={lang.code}
+              name={lang.name}
+              flag={lang.flag}
+              isSelected={language === lang.code}
+              onSelect={() => setLanguage(lang.code as 'en' | 'rw' | 'fr')}
+              isLast={index === LANGUAGES.length - 1}
+            />
+          ))}
         </View>
 
         {message ? (
@@ -166,5 +266,69 @@ function SettingRow({ icon, title, description, value, onValueChange }: SettingR
         thumbColor={value ? COLORS.PRIMARY : COLORS.TEXT_LIGHT}
       />
     </View>
+  );
+}
+
+type LanguageRowProps = {
+  code: string;
+  name: string;
+  flag: string;
+  isSelected: boolean;
+  onSelect: () => void;
+  isLast: boolean;
+};
+
+function LanguageRow({ code, name, flag, isSelected, onSelect, isLast }: LanguageRowProps) {
+  return (
+    <Pressable
+      onPress={onSelect}
+      style={({ pressed }) => ({
+        alignItems: "center",
+        borderBottomColor: COLORS.BORDER_LIGHT,
+        borderBottomWidth: isLast ? 0 : 1,
+        flexDirection: "row",
+        gap: 12,
+        padding: 16,
+        backgroundColor: pressed ? COLORS.MUTED : "transparent",
+      })}
+    >
+      <View
+        style={{
+          alignItems: "center",
+          backgroundColor: COLORS.PRIMARY_LIGHT,
+          borderRadius: 14,
+          height: 44,
+          justifyContent: "center",
+          width: 44,
+        }}
+      >
+        <Text style={{ fontSize: 20 }}>{flag}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{name}</Text>
+      </View>
+      <View
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          borderWidth: 2,
+          borderColor: isSelected ? COLORS.PRIMARY : COLORS.TEXT_LIGHT,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {isSelected && (
+          <View
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 6,
+              backgroundColor: COLORS.PRIMARY,
+            }}
+          />
+        )}
+      </View>
+    </Pressable>
   );
 }
