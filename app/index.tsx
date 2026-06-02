@@ -11,9 +11,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import OnboardingScreen from '@/components/onboarding/OnboardingScreen';
 import LandingScreen from './landing';
 import { COLORS } from '@/constants/colors';
+import { getPostAuthRoute, useAuthStore } from '@/store/auth.store';
 
 const ONBOARDING_KEY = '@onboarding_completed';
 
@@ -36,12 +38,21 @@ async function safeSetItem(key: string, value: string): Promise<void> {
 }
 
 export default function AppIndex() {
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authLoading = useAuthStore((state) => state.loading);
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     checkOnboardingStatus();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading && !authLoading && isAuthenticated) {
+      router.replace(getPostAuthRoute(user) as never);
+    }
+  }, [authLoading, isAuthenticated, isLoading, user]);
 
   const checkOnboardingStatus = async () => {
     try {
@@ -65,7 +76,7 @@ export default function AppIndex() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.BACKGROUND }}>
         <ActivityIndicator size="large" color={COLORS.PRIMARY} />
