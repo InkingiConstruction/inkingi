@@ -88,15 +88,19 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
       formData.append('currency', data.budget.currency);
       
       // Location
-      formData.append('boundary', JSON.stringify(data.location.coordinates));
+      formData.append('gpsBoundary', JSON.stringify(data.location.coordinates));
       formData.append('area', data.location.area.toString());
+      if (data.location.address) formData.append('address', data.location.address);
+      if (data.location.upi) formData.append('upi', data.location.upi);
+      if (data.location.ownerName) formData.append('ownerName', data.location.ownerName);
+      if (data.location.landUse) formData.append('landUse', data.location.landUse);
       
       // Documents
       data.documents.sitePhotos.forEach((photo, index) => {
         formData.append('sitePhotos', {
           uri: photo.uri,
           name: photo.fileName,
-          type: 'image/jpeg',
+          type: photo.mimeType || 'image/jpeg',
         } as any);
       });
       
@@ -104,7 +108,7 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
         formData.append('architecturalPlans', {
           uri: plan.uri,
           name: plan.fileName,
-          type: 'application/pdf',
+          type: plan.mimeType || (plan.fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
         } as any);
       });
       

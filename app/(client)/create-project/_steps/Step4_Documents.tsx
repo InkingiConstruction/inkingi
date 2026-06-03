@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { COLORS } from '@/constants/colors';
 import { ProjectData } from '..';
 import { createStyles } from '@/utils/createStyles';
@@ -33,6 +34,7 @@ interface Document {
   uploaded: boolean;
   url?: string;
   progress?: number;
+  mimeType?: string;
 }
 
 export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step4Props) {
@@ -40,9 +42,9 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
   const [architecturalPlans, setArchitecturalPlans] = useState<Document[]>(data.documents.architecturalPlans);
   const [uploading, setUploading] = useState(false);
 
-  const pickImages = async (type: 'site' | 'plan') => {
+  const pickSitePhotos = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      allowsMultipleSelection: type === 'site',
+      allowsMultipleSelection: true,
       mediaTypes: ['images'],
       quality: 0.85,
     });
@@ -50,19 +52,35 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
     if (!result.canceled) {
       const newDocuments = result.assets.map(asset => ({
         uri: asset.uri,
-        fileName: asset.fileName || `${type}-${Date.now()}.jpg`,
+        fileName: asset.fileName || `site-${Date.now()}.jpg`,
         uploaded: false,
         progress: 0,
+        mimeType: asset.mimeType || 'image/jpeg',
       }));
 
-      if (type === 'site') {
-        setSitePhotos([...sitePhotos, ...newDocuments]);
-      } else {
-        setArchitecturalPlans([...architecturalPlans, ...newDocuments]);
-      }
+      setSitePhotos([...sitePhotos, ...newDocuments]);
+      simulateUpload(newDocuments, 'site');
+    }
+  };
 
-      // Simulate upload (replace with actual Cloudinary upload)
-      simulateUpload(newDocuments, type);
+  const pickPlans = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: true,
+      type: ['application/pdf', 'image/*'],
+    });
+
+    if (!result.canceled) {
+      const newDocuments = result.assets.map(asset => ({
+        uri: asset.uri,
+        fileName: asset.name || `plan-${Date.now()}`,
+        uploaded: false,
+        progress: 0,
+        mimeType: asset.mimeType || (asset.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+      }));
+
+      setArchitecturalPlans([...architecturalPlans, ...newDocuments]);
+      simulateUpload(newDocuments, 'plan');
     }
   };
 
@@ -166,7 +184,7 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
         </Text>
         
         <Pressable
-          onPress={() => pickImages('site')}
+          onPress={pickSitePhotos}
           style={styles.uploadButton}
           disabled={uploading}
         >
@@ -217,13 +235,13 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
         </Text>
         
         <Pressable
-          onPress={() => pickImages('plan')}
+          onPress={pickPlans}
           style={styles.uploadButton}
           disabled={uploading}
         >
           <Ionicons name="document-text-outline" size={32} color={COLORS.PRIMARY} />
           <Text style={styles.uploadButtonText}>Add Plans</Text>
-          <Text style={styles.uploadButtonSubtext}>PDF, DWG, JPG, PNG</Text>
+          <Text style={styles.uploadButtonSubtext}>PDF, JPG, PNG</Text>
         </Pressable>
         
         {architecturalPlans.map((plan, index) => (

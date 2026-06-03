@@ -1,7 +1,7 @@
 // app/(client)/payments/deposit.tsx
 /**
  * @fileoverview Deposit funds screen with multiple payment methods
- * Supports MTN MoMo, Airtel Money, and Bank Transfer
+ * Supports MTN MoMo and Stripe-powered bank/card deposits
  * Minimum deposit: 100,000 RWF
  */
 
@@ -19,10 +19,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useStripe } from '@stripe/stripe-react-native';
 import { COLORS } from '@/constants/colors';
 import { api } from '@/api/api';
 import { ENDPOINTS } from '@/api/endpoints';
-import { useSampleFlowStore } from '@/store/sampleFlow.store';
 
 type PaymentMethod = 'mtn_momo' | 'bank_transfer';
 
@@ -31,7 +31,7 @@ interface PaymentMethodConfig {
   name: string;
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
-  fields: Array<{ key: string; label: string; placeholder: string; keyboardType?: string }>;
+  fields: { key: string; label: string; placeholder: string; keyboardType?: string }[];
 }
 
 const PAYMENT_METHODS: PaymentMethodConfig[] = [
@@ -46,32 +46,46 @@ const PAYMENT_METHODS: PaymentMethodConfig[] = [
   },  
   {
     id: 'bank_transfer',
-    name: 'Bank Transfer',
-    icon: 'business-outline',
+    name: 'Bank / Card via Stripe',
+    icon: 'card-outline',
     color: '#3B82F6',
-    fields: [
-      { key: 'accountName', label: 'Account Holder Name', placeholder: 'John Doe' },
-      { key: 'bankName', label: 'Bank Name', placeholder: 'Bank of Kigali' },
-      { key: 'accountNumber', label: 'Account Number', placeholder: '1234567890' },
-    ],
+    fields: [],
   },
 ];
 
+type EscrowAccount = {
+  id: string;
+  currency?: string;
+  projectId?: string;
+};
+
+type StripeDepositResponse = {
+  message: string;
+  data: {
+    clientSecret: string;
+    paymentIntentId: string;
+  };
+};
+
+type CreateEscrowResponse = {
+  message: string;
+  escrowAccount: EscrowAccount;
+};
+
 export default function DepositScreen() {
   const { vaultId, projectId, projectName } = useLocalSearchParams<{ vaultId: string; projectId: string; projectName: string }>();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('mtn_momo');
   const [amount, setAmount] = useState('');
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  const { bankAccounts, fundProjectFromBank } = useSampleFlowStore();
   const actualProjectId = vaultId || projectId || "";
 
   const currentMethod = PAYMENT_METHODS.find(m => m.id === selectedMethod)!;
 
   const handleAmountChange = (text: string) => {
     const cleanNumber = text.replace(/[^0-9]/g, '');
-    const num = parseInt(cleanNumber, 10) || 0;
     setAmount(cleanNumber);
   };
 
@@ -92,69 +106,82 @@ export default function DepositScreen() {
     return true;
   };
 
+  const resolveEscrowAccount = async () => {
+    if (!actualProjectId) throw new Error("Project is required before funding escrow.");
+
+    const existing = await api.get<EscrowAccount[]>(ENDPOINTS.ESCROW_ACCOUNTS.LIST, {
+      params: { projectId: actualProjectId },
+    });
+
+    const escrow = existing.data[0];
+    if (escrow?.id) return escrow;
+
+    const created = await api.post<CreateEscrowResponse>(ENDPOINTS.ESCROW_ACCOUNTS.LIST, {
+      projectId: actualProjectId,
+      currency: "rwf",
+    });
+
+    return created.data.escrowAccount;
+  };
+
+  const handleStripeDeposit = async (amountNum: number) => {
+    const escrow = await resolveEscrowAccount();
+    const response = await api.post<StripeDepositResponse>(
+      ENDPOINTS.ESCROW_ACCOUNTS.DEPOSIT_STRIPE(escrow.id),
+      {
+        amount: amountNum,
+        currency: escrow.currency || "rwf",
+      },
+    );
+
+    const clientSecret = response.data.data.clientSecret;
+    if (!clientSecret) throw new Error("Stripe did not return a payment client secret.");
+
+    const initResult = await initPaymentSheet({
+      merchantDisplayName: "Inkingi Construction",
+      paymentIntentClientSecret: clientSecret,
+      returnURL: "inkingi://stripe-redirect",
+    });
+
+    if (initResult.error) {
+      throw new Error(initResult.error.message);
+    }
+
+    const presentResult = await presentPaymentSheet();
+    if (presentResult.error) {
+      throw new Error(presentResult.error.message);
+    }
+
+    Alert.alert(
+      "Payment completed",
+      `${amountNum.toLocaleString()} RWF was paid through Stripe. Escrow will update after payment confirmation.`,
+      [{ text: "OK", onPress: () => router.back() }],
+    );
+  };
+
   const handleDeposit = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
     try {
-      const isMomo = selectedMethod === 'mtn_momo';
-      const type = isMomo ? 'momo' : 'bk';
-      const selectedAcc = bankAccounts.find(a => a.type === type);
+      const amountNum = parseInt(amount, 10);
 
-      if (selectedAcc && selectedAcc.linked) {
-        if (selectedAcc.balance < parseInt(amount, 10)) {
-          Alert.alert('Insufficient Balance', `Your linked ${selectedAcc.bankName} account has insufficient funds. Current balance: ${selectedAcc.balance.toLocaleString()} RWF`);
-          setLoading(false);
-          return;
-        }
-
-        const success = await fundProjectFromBank(actualProjectId, projectName || 'Project', parseInt(amount, 10), type);
-        if (success) {
-          Alert.alert(
-            'Deposit Successful',
-            `Successfully transferred ${parseInt(amount, 10).toLocaleString()} RWF from your linked ${selectedAcc.bankName} to Project Escrow!`,
-            [
-              { text: 'OK', onPress: () => router.back() }
-            ]
-          );
-        } else {
-          Alert.alert('Deposit Failed', 'There was an issue processing the bank transfer. Please try again.');
-        }
-      } else {
-        const response = await api.post(ENDPOINTS.ESCROW_ACCOUNTS.DEPOSIT(actualProjectId), {
-          amount: parseInt(amount, 10),
-          method: selectedMethod,
-          ...formData,
-        }).catch(() => null);
-
-        if (selectedMethod === 'mtn_momo') {
-          Alert.alert(
-            'Payment Initiated',
-            `A payment request has been sent to ${formData.phoneNumber || 'your phone'}. Please check your phone and complete the payment.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => router.back(),
-              },
-            ]
-          );
-        } else {
-          Alert.alert(
-            'Bank Transfer Details',
-            `Please transfer ${parseInt(amount, 10).toLocaleString()} RWF to:\n\n` +
-            `Bank: InkingiPro Escrow Account\n` +
-            `Account: 1234567890\n` +
-            `Reference: DEP-${Date.now()}\n\n` +
-            `The funds will be credited within 24 hours.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => router.back(),
-              },
-            ]
-          );
-        }
+      if (selectedMethod === 'bank_transfer') {
+        await handleStripeDeposit(amountNum);
+        return;
       }
+
+      const escrow = await resolveEscrowAccount();
+      await api.post(ENDPOINTS.ESCROW_ACCOUNTS.DEPOSIT_MTN(escrow.id), {
+        amount: amountNum,
+        phoneNumber: formData.phoneNumber,
+      });
+
+      Alert.alert(
+        'Payment Initiated',
+        `A payment request has been sent to ${formData.phoneNumber || 'your phone'}. Please check your phone and complete the payment.`,
+        [{ text: 'OK', onPress: () => router.back() }],
+      );
     } catch (error) {
       Alert.alert('Deposit Failed', error instanceof Error ? error.message : 'Please try again');
     } finally {
@@ -218,7 +245,9 @@ export default function DepositScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.methodName}>{method.name}</Text>
-                  <Text style={styles.methodDesc}>Instant • Secure</Text>
+                  <Text style={styles.methodDesc}>
+                    {method.id === 'bank_transfer' ? 'Stripe secured checkout' : 'Mobile money prompt'}
+                  </Text>
                 </View>
                 {selectedMethod === method.id && (
                   <Ionicons name="checkmark-circle" size={24} color={COLORS.PRIMARY} />
@@ -280,7 +309,9 @@ export default function DepositScreen() {
           ) : (
             <>
               <Ionicons name="lock-closed-outline" size={20} color="#FFF" />
-              <Text style={styles.submitButtonText}>Confirm Deposit</Text>
+              <Text style={styles.submitButtonText}>
+                {selectedMethod === 'bank_transfer' ? 'Pay with Stripe' : 'Confirm Deposit'}
+              </Text>
             </>
           )}
         </Pressable>

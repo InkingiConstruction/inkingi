@@ -61,8 +61,8 @@ export interface ProjectData {
   
   // Step 4: Documents
   documents: {
-    sitePhotos: Array<{ uri: string; fileName: string; uploaded: boolean; url?: string }>;
-    architecturalPlans: Array<{ uri: string; fileName: string; uploaded: boolean; url?: string }>;
+    sitePhotos: Array<{ uri: string; fileName: string; uploaded: boolean; url?: string; mimeType?: string }>;
+    architecturalPlans: Array<{ uri: string; fileName: string; uploaded: boolean; url?: string; mimeType?: string }>;
   };
   
   // Metadata
