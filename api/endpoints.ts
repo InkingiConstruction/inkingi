@@ -24,6 +24,7 @@ export const ENDPOINTS = {
   },
   PROJECTS: {
     LIST: "/projects",
+    CREATE: "/projects",
     DETAIL: (id: string) => `/projects/${id}`,
   },
   PROJECT_MEMBERS: {
@@ -84,6 +85,8 @@ export const ENDPOINTS = {
   ESCROW_ACCOUNTS: {
     LIST: "/escrow-accounts",
     DETAIL: (id: string) => `/escrow-accounts/${id}`,
+    DEPOSIT: (id: string) => `/escrow-accounts/${id}/deposit`,
+    WITHDRAW: (id: string) => `/escrow-accounts/${id}/withdraw`,
     DEPOSIT_MTN: (id: string) => `/escrow-accounts/${id}/deposit-mtn`,
     DEPOSIT_STRIPE: (id: string) => `/escrow-accounts/${id}/deposit-stripe`,
   },

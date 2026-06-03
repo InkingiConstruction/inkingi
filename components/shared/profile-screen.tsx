@@ -6,20 +6,16 @@ import {
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
-  Switch,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
 import { useAuthStore } from "@/store/auth.store";
-import { useThemeStore } from "@/store/theme.store";
 
 export function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
-  const preference = useThemeStore((state) => state.preference);
-  const setPreference = useThemeStore((state) => state.setPreference);
   const imageUri = user?.image || user?.avatar || "";
 
   const completion = useMemo(() => {
@@ -266,20 +262,6 @@ export function ProfileScreen() {
 
           <Group title="PREFERENCES">
             <MenuRow icon="language-outline" label="Language" value="English (USA)" />
-            <View style={rowStyle}>
-              <View style={rowIconStyle}>
-                <Ionicons name="moon-outline" size={18} color={COLORS.PRIMARY_DARK} />
-              </View>
-              <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800" }}>
-                Dark Mode
-              </Text>
-              <Switch
-                value={preference === "dark"}
-                onValueChange={(value) => setPreference(value ? "dark" : "light")}
-                trackColor={{ false: COLORS.CONCRETE, true: COLORS.PRIMARY }}
-                thumbColor={COLORS.SURFACE}
-              />
-            </View>
           </Group>
 
           <View style={{ ...groupStyle, marginBottom: 24 }}>

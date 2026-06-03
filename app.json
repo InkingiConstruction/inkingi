@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyCdhSd0TiA6w7L8019ekxSU3rXQmq5Sm6Y"
+      }
     },
     "android": {
       "package": "com.francois250.inkingi",
@@ -21,7 +24,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCdhSd0TiA6w7L8019ekxSU3rXQmq5Sm6Y"
+        }
+      }
     },
     "web": {
       "output": "static",
@@ -56,6 +64,12 @@
         {
           "merchantIdentifier": "",
           "enableGooglePay": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow InkingiPro to access your location to mark project sites."
         }
       ]
     ],

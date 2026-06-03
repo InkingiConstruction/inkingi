@@ -1,4 +1,3 @@
-import { useThemeColors } from "@/hooks/useThemeColors";
 import { useExpoPushNotifications } from "@/hooks/useExpoPushNotifications";
 import { useAuthStore } from "@/store/auth.store";
 import { StripeProvider } from "@stripe/stripe-react-native";
@@ -8,13 +7,13 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { COLORS } from "@/constants/colors";
 
 const queryClient = new QueryClient();
 const stripePublishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
 export default function RootLayout() {
   const fetchUser = useAuthStore((state) => state.fetchUser);
-  const { colors, isDark } = useThemeColors();
   useExpoPushNotifications();
 
   useEffect(() => {
@@ -32,8 +31,8 @@ export default function RootLayout() {
           >
             <StatusBar
               hidden={false}
-              style={isDark ? "light" : "dark"}
-              backgroundColor={colors.BACKGROUND}
+              style="dark"
+              backgroundColor={COLORS.BACKGROUND}
               translucent={false}
             />
             <Stack screenOptions={{ headerShown: false }}>
