@@ -26,7 +26,7 @@ export const clearAuthToken = () => SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 60000,
   headers: {
     "Content-Type": "application/json",
   },
