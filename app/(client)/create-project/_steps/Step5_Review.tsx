@@ -111,6 +111,18 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
           type: plan.mimeType || (plan.fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
         } as any);
       });
+
+      if (data.location.landCertificate) {
+        formData.append('architecturalPlans', {
+          uri: data.location.landCertificate.uri,
+          name: data.location.landCertificate.fileName,
+          type:
+            data.location.landCertificate.mimeType ||
+            (data.location.landCertificate.fileName.toLowerCase().endsWith('.pdf')
+              ? 'application/pdf'
+              : 'image/jpeg'),
+        } as any);
+      }
       
       await api.post(ENDPOINTS.PROJECTS.CREATE, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -212,6 +224,20 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
             <Text style={styles.label}>Site Area:</Text>
             <Text style={styles.value}>{(data.location.area / 10000).toFixed(2)} hectares</Text>
           </View>
+
+          {data.location.upi ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>UPI:</Text>
+              <Text style={styles.value}>{data.location.upi}</Text>
+            </View>
+          ) : null}
+
+          {data.location.landCertificate ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Land Certificate:</Text>
+              <Text style={styles.value}>{data.location.landCertificate.fileName}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Documents Section */}

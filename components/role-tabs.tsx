@@ -23,14 +23,14 @@ export function RoleTabs({ tabs, hiddenRoutes = [] }: RoleTabsProps) {
   const hiddenOnlyRoutes = hiddenRoutes.filter((name) => !tabNames.has(name));
   const crowded = tabs.length > 5;
   const bottomInset = insets.bottom;
-  const fallbackBottomPadding = Platform.OS === "ios" ? 20 : 40;
+  const fallbackBottomPadding = Platform.OS === "ios" ? 20 : 18;
   const paddingBottom =
     Platform.OS === "android"
-      ? Math.max(bottomInset, fallbackBottomPadding)
+      ? Math.max(Math.min(bottomInset, 28), fallbackBottomPadding)
       : bottomInset > 0
         ? bottomInset
         : fallbackBottomPadding;
-  const baseTabBarHeight = crowded ? 60 : 64;
+  const baseTabBarHeight = crowded ? 58 : 60;
   const tabBarHeight = baseTabBarHeight + paddingBottom;
 
   return (
@@ -42,7 +42,7 @@ export function RoleTabs({ tabs, hiddenRoutes = [] }: RoleTabsProps) {
         tabBarLabelStyle: {
           fontSize: crowded ? 9 : 10,
           fontWeight: "800",
-          paddingBottom: Platform.OS === "android" ? 0 : 0,
+          marginTop: -2,
         },
         tabBarStyle: {
           backgroundColor: COLORS.SURFACE,
@@ -66,7 +66,9 @@ export function RoleTabs({ tabs, hiddenRoutes = [] }: RoleTabsProps) {
           options={{
             title: tab.title,
             tabBarItemStyle: {
-              paddingVertical: 2,
+              height: baseTabBarHeight,
+              paddingTop: 2,
+              paddingBottom: 0,
             },
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons

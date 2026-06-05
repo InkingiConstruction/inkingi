@@ -57,6 +57,7 @@ export interface ProjectData {
     upi?: string;
     ownerName?: string;
     landUse?: string;
+    landCertificate?: { uri: string; fileName: string; mimeType?: string };
   };
   
   // Step 4: Documents
@@ -209,12 +210,12 @@ export default function CreateProjectWizard() {
 
         {/* Step Content */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
             keyboardShouldPersistTaps="handled"
           >
             {renderStep()}

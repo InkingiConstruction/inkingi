@@ -19,6 +19,7 @@ export default function Login() {
   const loading = useAuthStore((state) => state.loading);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   const submit = async () => {
@@ -35,11 +36,19 @@ export default function Login() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.SURFACE }}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={{ flex: 1, justifyContent: "center" }}>
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingBottom: Platform.OS === "android" ? 36 : 16,
+          }}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ flex: 1, justifyContent: "center", minHeight: 640 }}>
             <View
               style={{
                 backgroundColor: COLORS.SURFACE,
@@ -103,6 +112,7 @@ export default function Login() {
                     onChangeText={setEmail}
                     placeholder="Email address"
                     placeholderTextColor={COLORS.STEEL}
+                    returnKeyType="next"
                     style={{ color: COLORS.INK, flex: 1, fontWeight: "700" }}
                     value={email}
                   />
@@ -125,12 +135,26 @@ export default function Login() {
                   />
                   <TextInput
                     onChangeText={setPassword}
+                    onSubmitEditing={submit}
                     placeholder="Password"
                     placeholderTextColor={COLORS.TEXT_LIGHT}
-                    secureTextEntry
+                    returnKeyType="done"
+                    secureTextEntry={!showPassword}
                     style={{ color: COLORS.TEXT_PRIMARY, flex: 1 }}
                     value={password}
                   />
+                  <Pressable
+                    accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                    accessibilityRole="button"
+                    hitSlop={10}
+                    onPress={() => setShowPassword((value) => !value)}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color={COLORS.TEXT_LIGHT}
+                    />
+                  </Pressable>
                 </View>
 
                 {error ? (

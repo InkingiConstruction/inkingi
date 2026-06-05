@@ -89,6 +89,11 @@ export const ENDPOINTS = {
     CREATE: "/supplier-inventory",
     DETAIL: (id: string) => `/supplier-inventory/${id}`,
   },
+  SITE_AGENT: {
+    DAILY_REPORTS: "/site-agent/daily-reports",
+    INVENTORY_LOGS: "/site-agent/inventory-logs",
+    DELIVERY_VERIFICATIONS: "/site-agent/delivery-verifications",
+  },
   ESCROW_ACCOUNTS: {
     LIST: "/escrow-accounts",
     DETAIL: (id: string) => `/escrow-accounts/${id}`,

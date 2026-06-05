@@ -42,6 +42,7 @@ export default function RootLayout() {
               <Stack.Screen name="(engineer)" />
               <Stack.Screen name="(supervisor)" />
               <Stack.Screen name="(supplier)" />
+              <Stack.Screen name="(site-agent)" />
             </Stack>
           </StripeProvider>
         </SafeAreaProvider>

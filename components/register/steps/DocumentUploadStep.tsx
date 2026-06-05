@@ -32,7 +32,7 @@ export default function DocumentUploadStep({ data, onUpdate, onNext, onPrev }: D
     const list: Array<{ id: string; title: string; desc: string }> = [];
 
     // All individual roles need ID Card/Passport
-    if (isIndividual || role === 'client') {
+    if (isIndividual || role === 'client' || role === 'site_agent') {
       list.push({
         id: 'national_id',
         title: 'National ID or Passport',
@@ -81,6 +81,12 @@ export default function DocumentUploadStep({ data, onUpdate, onNext, onPrev }: D
         id: 'tin_certificate',
         title: 'VAT/TIN Registration Certificate',
         desc: 'Rwanda Revenue Authority TIN assignment copy.'
+      });
+    } else if (role === 'site_agent') {
+      list.push({
+        id: 'site_operations_reference',
+        title: 'Site Operations Reference',
+        desc: 'Work reference, site management certificate, or construction safety training proof.'
       });
     }
 

@@ -34,7 +34,7 @@ import DocumentUploadStep from "@/components/register/steps/DocumentUploadStep";
 import ReviewSubmitStep from "@/components/register/steps/ReviewSubmitStep";
 import VerificationPendingStep from "@/components/register/steps/VerificationPendingStep";
 
-export type UserRole = "client" | "engineer" | "supervisor" | "supplier";
+export type UserRole = "client" | "engineer" | "supervisor" | "supplier" | "site_agent";
 
 export interface RegistrationData {
   basic: {
@@ -73,7 +73,8 @@ const isUserRole = (value?: string): value is UserRole =>
   value === "client" ||
   value === "engineer" ||
   value === "supervisor" ||
-  value === "supplier";
+  value === "supplier" ||
+  value === "site_agent";
 
 const createEmailVerificationResume = (params: {
   role?: string | string[];
@@ -373,6 +374,8 @@ function getSteps(role: UserRole): string[] {
         "Review",
         "Done",
       ];
+    case "site_agent":
+      return [...base, "Documents", "Review", "Done"];
     default:
       return base;
   }
@@ -435,6 +438,16 @@ function renderStep(role: UserRole, step: number, props: any) {
       7: <DocumentUploadStep {...props} />,
       8: <ReviewSubmitStep {...props} />,
       9: <VerificationPendingStep />,
+    };
+    return map[step] ?? null;
+  }
+  if (role === "site_agent") {
+    const map: Record<number, React.ReactElement | null> = {
+      0: <BasicInfoStep {...props} />,
+      1: <EmailVerificationStep {...props} />,
+      2: <DocumentUploadStep {...props} />,
+      3: <ReviewSubmitStep {...props} />,
+      4: <VerificationPendingStep />,
     };
     return map[step] ?? null;
   }

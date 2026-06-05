@@ -48,6 +48,14 @@ const ROLES: RoleConfig[] = [
     accent: COLORS.STEEL,
     tint: COLORS.MUTED,
   },
+  {
+    id: "site_agent",
+    title: "Site Agent",
+    icon: "clipboard-outline",
+    description: "Record daily site activity, receive materials, and track stock usage.",
+    accent: COLORS.PRIMARY_DARK,
+    tint: COLORS.PRIMARY_LIGHT,
+  },
 ];
 
 interface RoleSelectionStepProps {

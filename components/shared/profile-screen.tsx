@@ -46,7 +46,14 @@ type ProfileRoute =
   | "/(supplier)/purchase-orders"
   | "/(supplier)/quotes"
   | "/(supplier)/rfqs"
-  | "/(supplier)/settings";
+  | "/(supplier)/settings"
+  | "/(site-agent)"
+  | "/(site-agent)/daily-report"
+  | "/(site-agent)/inventory"
+  | "/(site-agent)/messages"
+  | "/(site-agent)/profile-edit"
+  | "/(site-agent)/receiving"
+  | "/(site-agent)/settings";
 
 type ProfileAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -80,6 +87,11 @@ const roleCopy: Record<UserRole, { title: string; body: string; icon: keyof type
     title: "Supplier Workspace",
     body: "Respond to RFQs, manage quotes, orders, and material deliveries.",
     icon: "cube-outline",
+  },
+  site_agent: {
+    title: "Site Agent Workspace",
+    body: "Record daily reports, receive materials, and track on-site stock movement.",
+    icon: "clipboard-outline",
   },
 };
 
@@ -116,6 +128,12 @@ const roleActions: Record<UserRole, ProfileAction[]> = {
     { icon: "cube-outline", label: "Deliveries", value: "Track", route: "/(supplier)/deliveries" },
     { icon: "chatbubbles-outline", label: "Messages", value: "Project chat", route: "/(supplier)/messages" },
   ],
+  site_agent: [
+    { icon: "clipboard-outline", label: "Daily reports", value: "Ground truth", route: "/(site-agent)/daily-report" },
+    { icon: "cube-outline", label: "Site stock", value: "Inventory", route: "/(site-agent)/inventory" },
+    { icon: "keypad-outline", label: "Receiving", value: "PIN verify", route: "/(site-agent)/receiving" },
+    { icon: "chatbubbles-outline", label: "Messages", value: "Project chat", route: "/(site-agent)/messages" },
+  ],
 };
 
 const roleHome: Record<UserRole, ProfileRoute> = {
@@ -124,6 +142,7 @@ const roleHome: Record<UserRole, ProfileRoute> = {
   engineer: "/(engineer)",
   supervisor: "/(supervisor)",
   supplier: "/(supplier)",
+  site_agent: "/(site-agent)",
 };
 
 const roleSettings: Record<UserRole, ProfileRoute> = {
@@ -132,6 +151,7 @@ const roleSettings: Record<UserRole, ProfileRoute> = {
   engineer: "/(engineer)/settings",
   supervisor: "/(supervisor)/settings",
   supplier: "/(supplier)/settings",
+  site_agent: "/(site-agent)/settings",
 };
 
 const roleNotifications: Record<UserRole, ProfileRoute> = {
@@ -140,6 +160,7 @@ const roleNotifications: Record<UserRole, ProfileRoute> = {
   engineer: "/(engineer)/notifications",
   supervisor: "/(supervisor)/notifications",
   supplier: "/(supplier)/notifications",
+  site_agent: "/(site-agent)",
 };
 
 const roleProfileEdit: Record<UserRole, ProfileRoute> = {
@@ -148,6 +169,7 @@ const roleProfileEdit: Record<UserRole, ProfileRoute> = {
   engineer: "/(engineer)/profile-edit",
   supervisor: "/(supervisor)/profile-edit",
   supplier: "/(supplier)/profile-edit",
+  site_agent: "/(site-agent)/profile-edit",
 };
 
 export function ProfileScreen() {

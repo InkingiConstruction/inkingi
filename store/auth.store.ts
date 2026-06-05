@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { api, clearAuthToken, getAuthToken, setAuthToken } from "../api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 
-export type UserRole = "client" | "engineer" | "supervisor" | "supplier" | "admin";
+export type UserRole = "client" | "engineer" | "supervisor" | "supplier" | "site_agent" | "admin";
 
 export interface User {
   id: string;
@@ -56,6 +56,7 @@ export const getRoleHome = (role?: string | null) => {
   if (role === "engineer") return "/(engineer)";
   if (role === "supervisor") return "/(supervisor)";
   if (role === "supplier") return "/(supplier)";
+  if (role === "site_agent") return "/(site-agent)";
   return "/(client)";
 };
 

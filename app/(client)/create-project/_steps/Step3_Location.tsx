@@ -16,19 +16,18 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   StatusBar,
 } from 'react-native';
 import MapView, { Marker, Polygon, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/colors';
 import { ProjectData } from '..';
 
 const { width, height } = Dimensions.get('window');
+const methodCardWidth = (width - 50) / 2;
 
 interface Coordinate {
   latitude: number;
@@ -54,7 +53,9 @@ interface VerifiedLand {
 
 export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3Props) {
   const insets = useSafeAreaInsets();
-  const [inputMode, setInputMode] = useState<'search' | 'map' | 'document'>('search');
+  const [inputMode, setInputMode] = useState<'search' | 'gps' | 'map' | 'document'>(
+    data.location.upi ? 'document' : data.location.coordinates?.length ? 'gps' : 'search'
+  );
   const [coordinates, setCoordinates] = useState<Coordinate[]>(data.location.coordinates || []);
   const [isDrawing, setIsDrawing] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<Region | null>(null);
@@ -68,13 +69,24 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
   const [searchedAddressData, setSearchedAddressData] = useState<{ address: string; lat: number; lng: number } | null>(
     data.location.address && !data.location.upi ? { address: data.location.address, lat: -1.9441, lng: 30.0619 } : null
   );
+  const [gpsLatitude, setGpsLatitude] = useState(
+    data.location.coordinates?.[0]?.latitude ? String(data.location.coordinates[0].latitude) : ''
+  );
+  const [gpsLongitude, setGpsLongitude] = useState(
+    data.location.coordinates?.[0]?.longitude ? String(data.location.coordinates[0].longitude) : ''
+  );
+  const [gpsAddress, setGpsAddress] = useState(data.location.address || '');
 
   // UPI Document Mode states
   const [upiInput, setUpiInput] = useState(data.location.upi || '');
   const [isVerifyingLand, setIsVerifyingLand] = useState(false);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<{ name: string; size: string } | null>(
-    data.location.upi ? { name: 'Icyangobwa_cy_Ubutaka_Verified.pdf', size: '1.8 MB' } : null
+    data.location.landCertificate
+      ? { name: data.location.landCertificate.fileName, size: 'Ready' }
+      : data.location.upi
+        ? { name: 'Icyangobwa_cy_Ubutaka_Verified.pdf', size: '1.8 MB' }
+        : null
   );
 
   const [verifiedLandData, setVerifiedLandData] = useState<VerifiedLand | null>(
@@ -333,42 +345,121 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
     }, 1500);
   };
 
-  const handleUploadDocument = () => {
-    setIsUploadingDoc(true);
-    setTimeout(() => {
-      setIsUploadingDoc(false);
-      
-      const mockUPI = "1/02/05/11/204";
-      setUpiInput(mockUPI);
+  const handleUploadDocument = async () => {
+    try {
+      setIsUploadingDoc(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        type: ['application/pdf', 'image/*'],
+      });
+
+      if (result.canceled || !result.assets?.[0]) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const mimeType =
+        asset.mimeType ||
+        (asset.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
+      if (mimeType !== 'application/pdf' && !mimeType.startsWith('image/')) {
+        Alert.alert('Unsupported File', 'Please upload a PDF or photo of the land certificate.');
+        return;
+      }
+
+      const certificate = {
+        uri: asset.uri,
+        fileName: asset.name || `land-certificate-${Date.now()}`,
+        mimeType,
+      };
+
       setUploadedDocument({
-        name: 'Land_Certificate_UPI_1020511204.pdf',
-        size: '1.8 MB'
+        name: certificate.fileName,
+        size: asset.size ? `${(asset.size / (1024 * 1024)).toFixed(1)} MB` : 'Selected',
       });
 
-      const mockCoords = [
-        { latitude: -1.9441, longitude: 30.0619 },
-        { latitude: -1.9445, longitude: 30.0619 },
-        { latitude: -1.9445, longitude: 30.0625 },
-        { latitude: -1.9441, longitude: 30.0625 }
-      ];
-      setCoordinates(mockCoords);
-      setTempCoordinates(mockCoords);
-      setVerifiedLandData({
-        upi: mockUPI,
-        ownerName: "Jean Bosco Niyonisenga",
-        size: 520,
-        useType: "High Density Residential (R1A)",
-        sector: "Kimironko",
-        district: "Gasabo",
-        coordinates: mockCoords
+      const nextUpi = upiInput.trim();
+      onUpdate({
+        location: {
+          coordinates,
+          area,
+          address: data.location.address,
+          upi: nextUpi || data.location.upi,
+          ownerName: data.location.ownerName,
+          landUse: data.location.landUse,
+          landCertificate: certificate,
+        },
       });
 
-      Alert.alert(
-        'Document Processed',
-        'Land Certificate successfully parsed. Verified owner, dimensions, and parcel coordinates from RLMUA are loaded.',
-        [{ text: 'View on Map', onPress: () => setShowMapModal(true) }]
-      );
-    }, 2000);
+      Alert.alert('Certificate Selected', 'Land certificate added. You can verify UPI or continue after location details are ready.');
+    } catch (error) {
+      console.error('Land certificate pick error:', error);
+      Alert.alert('Upload Failed', 'Could not select the land certificate. Please choose a PDF or photo.');
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
+
+  const handleUseCurrentGps = async () => {
+    try {
+      setLoading(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is needed to use current GPS coordinates.');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      setGpsLatitude(String(location.coords.latitude));
+      setGpsLongitude(String(location.coords.longitude));
+    } catch (error) {
+      console.error('Error getting GPS coordinates:', error);
+      Alert.alert('GPS Error', 'Could not read your current GPS coordinates.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApplyGps = () => {
+    const lat = Number(gpsLatitude);
+    const lng = Number(gpsLongitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      Alert.alert('Invalid GPS', 'Please enter valid latitude and longitude values.');
+      return;
+    }
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      Alert.alert('Invalid GPS', 'Latitude must be between -90 and 90. Longitude must be between -180 and 180.');
+      return;
+    }
+
+    const gpsPolygon = [
+      { latitude: lat + 0.0002, longitude: lng - 0.0002 },
+      { latitude: lat + 0.0002, longitude: lng + 0.0002 },
+      { latitude: lat - 0.0002, longitude: lng + 0.0002 },
+      { latitude: lat - 0.0002, longitude: lng - 0.0002 },
+    ];
+
+    setCoordinates(gpsPolygon);
+    setTempCoordinates(gpsPolygon);
+    setCurrentLocation({
+      latitude: lat,
+      longitude: lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+
+    onUpdate({
+      location: {
+        coordinates: gpsPolygon,
+        area: calculateArea(gpsPolygon),
+        address: gpsAddress.trim() || `GPS ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+      },
+    });
+
+    Alert.alert('GPS Applied', 'Coordinates have been applied. You can adjust the boundary on the map if needed.');
   };
 
   const area = calculateArea(coordinates);
@@ -385,6 +476,11 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
     if (inputMode === 'search') {
       if (!searchedAddressData || !isPolygonValid) {
         Alert.alert('Address Required', 'Please enter and search for a valid address first.');
+        return;
+      }
+    } else if (inputMode === 'gps') {
+      if (!isPolygonValid) {
+        Alert.alert('GPS Required', 'Please apply GPS coordinates before continuing.');
         return;
       }
     } else if (inputMode === 'map') {
@@ -409,15 +505,26 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
         location: {
           coordinates,
           area: calculateArea(coordinates),
-          address: searchedAddressData.address
+          address: searchedAddressData.address,
+          landCertificate: data.location.landCertificate,
         }
+      });
+    } else if (inputMode === 'gps') {
+      onUpdate({
+        location: {
+          coordinates,
+          area,
+          address: gpsAddress.trim() || `GPS ${gpsLatitude}, ${gpsLongitude}`,
+          landCertificate: data.location.landCertificate,
+        },
       });
     } else if (inputMode === 'map') {
       onUpdate({
         location: {
           coordinates,
           area,
-          address: 'Kigali, Rwanda'
+          address: 'Kigali, Rwanda',
+          landCertificate: data.location.landCertificate,
         },
       });
     } else if (verifiedLandData) {
@@ -428,6 +535,7 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
           upi: verifiedLandData.upi,
           ownerName: verifiedLandData.ownerName,
           landUse: verifiedLandData.useType,
+          landCertificate: data.location.landCertificate,
           address: `${verifiedLandData.district}, ${verifiedLandData.sector}`
         }
       });
@@ -455,6 +563,33 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
       );
     }
     
+    if (inputMode === 'gps' && isPolygonValid) {
+      return (
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <Ionicons name="navigate-circle-outline" size={20} color={COLORS.SUCCESS} />
+            <Text style={styles.summaryTitle}>GPS Coordinates Applied</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Latitude:</Text>
+            <Text style={styles.summaryValue}>{gpsLatitude}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Longitude:</Text>
+            <Text style={styles.summaryValue}>{gpsLongitude}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Area:</Text>
+            <Text style={styles.summaryValue}>{area.toFixed(1)} m²</Text>
+          </View>
+          <Pressable onPress={handleEditBoundary} style={styles.editButton}>
+            <Ionicons name="create-outline" size={16} color={COLORS.PRIMARY} />
+            <Text style={styles.editButtonText}>Adjust Boundary on Map</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
     if (inputMode === 'map' && isPolygonValid) {
       return (
         <View style={styles.summaryCard}>
@@ -520,53 +655,67 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
   return (
     <>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.BACKGROUND} />
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
-        <ScrollView 
-          style={styles.container}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+      <View style={styles.container}>
           {/* Title Section */}
           <View style={styles.titleSection}>
             <Text style={styles.title}>Project Location</Text>
             <Text style={styles.subtitle}>
-              Set the construction site location using address search, map drawing, or land certificate
+              Set the construction site using UPI, exact GPS coordinates, address lookup, or manual boundary drawing.
             </Text>
           </View>
 
-          {/* Input Mode Selector - Three Tabs */}
-          <View style={styles.tabContainer}>
+          {/* Input Mode Selector */}
+          <View style={styles.methodGrid}>
             <Pressable
-              onPress={() => setInputMode('search')}
-              style={[styles.tab, inputMode === 'search' && styles.activeTab]}
+              onPress={() => setInputMode((mode) => (mode === 'search' ? mode : 'search'))}
+              style={[styles.methodCard, inputMode === 'search' && styles.activeMethodCard]}
             >
-              <Ionicons name="search-outline" size={18} color={inputMode === 'search' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
-              <Text style={[styles.tabText, inputMode === 'search' && styles.activeTabText]}>
-                Address Search
-              </Text>
+              <Ionicons name="search-outline" size={20} color={inputMode === 'search' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.methodTitle, inputMode === 'search' && styles.activeMethodTitle]}>
+                  Address
+                </Text>
+                <Text style={styles.methodText}>Search landmark or road</Text>
+              </View>
             </Pressable>
 
             <Pressable
-              onPress={() => setInputMode('map')}
-              style={[styles.tab, inputMode === 'map' && styles.activeTab]}
+              onPress={() => setInputMode((mode) => (mode === 'gps' ? mode : 'gps'))}
+              style={[styles.methodCard, inputMode === 'gps' && styles.activeMethodCard]}
             >
-              <Ionicons name="map-outline" size={18} color={inputMode === 'map' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
-              <Text style={[styles.tabText, inputMode === 'map' && styles.activeTabText]}>
-                Draw on Map
-              </Text>
+              <Ionicons name="navigate-circle-outline" size={20} color={inputMode === 'gps' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.methodTitle, inputMode === 'gps' && styles.activeMethodTitle]}>
+                  GPS
+                </Text>
+                <Text style={styles.methodText}>Enter exact coordinates</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setInputMode((mode) => (mode === 'map' ? mode : 'map'))}
+              style={[styles.methodCard, inputMode === 'map' && styles.activeMethodCard]}
+            >
+              <Ionicons name="map-outline" size={20} color={inputMode === 'map' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.methodTitle, inputMode === 'map' && styles.activeMethodTitle]}>
+                  Map
+                </Text>
+                <Text style={styles.methodText}>Draw boundary points</Text>
+              </View>
             </Pressable>
             
             <Pressable
-              onPress={() => setInputMode('document')}
-              style={[styles.tab, inputMode === 'document' && styles.activeTab]}
+              onPress={() => setInputMode((mode) => (mode === 'document' ? mode : 'document'))}
+              style={[styles.methodCard, inputMode === 'document' && styles.activeMethodCard]}
             >
-              <Ionicons name="document-text-outline" size={18} color={inputMode === 'document' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
-              <Text style={[styles.tabText, inputMode === 'document' && styles.activeTabText]}>
-                Land Certificate
-              </Text>
+              <Ionicons name="document-text-outline" size={20} color={inputMode === 'document' ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.methodTitle, inputMode === 'document' && styles.activeMethodTitle]}>
+                  UPI
+                </Text>
+                <Text style={styles.methodText}>Land certificate number</Text>
+              </View>
             </Pressable>
           </View>
 
@@ -600,7 +749,64 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
             </View>
           )}
 
-          {/* Tab 2: Map Drawing */}
+          {/* Tab 2: GPS Coordinates */}
+          {inputMode === 'gps' && (
+            <View style={styles.inputPanel}>
+              <View style={styles.panelHeader}>
+                <Text style={styles.fieldLabel}>Exact GPS Coordinates</Text>
+                <Pressable onPress={handleUseCurrentGps} style={styles.smallOutlineButton}>
+                  <Ionicons name="locate-outline" size={15} color={COLORS.PRIMARY} />
+                  <Text style={styles.smallOutlineText}>Use current</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.gpsGrid}>
+                <View style={styles.gpsField}>
+                  <Text style={styles.gpsLabel}>Latitude</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="decimal-pad"
+                    onChangeText={setGpsLatitude}
+                    placeholder="-1.944100"
+                    placeholderTextColor={COLORS.TEXT_LIGHT}
+                    style={styles.gpsInput}
+                    value={gpsLatitude}
+                  />
+                </View>
+                <View style={styles.gpsField}>
+                  <Text style={styles.gpsLabel}>Longitude</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    keyboardType="decimal-pad"
+                    onChangeText={setGpsLongitude}
+                    placeholder="30.061900"
+                    placeholderTextColor={COLORS.TEXT_LIGHT}
+                    style={styles.gpsInput}
+                    value={gpsLongitude}
+                  />
+                </View>
+              </View>
+
+              <TextInput
+                onChangeText={setGpsAddress}
+                placeholder="Optional site label, village, road, or sector"
+                placeholderTextColor={COLORS.TEXT_LIGHT}
+                style={[styles.searchInput, { marginTop: 12 }]}
+                value={gpsAddress}
+              />
+
+              <Pressable onPress={handleApplyGps} style={styles.fullPrimaryButton}>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#FFF" />
+                <Text style={styles.fullPrimaryButtonText}>Apply GPS Coordinates</Text>
+              </Pressable>
+
+              <Text style={styles.helperText}>
+                This creates a starter boundary around the coordinate. You can adjust it on the map before submitting.
+              </Text>
+            </View>
+          )}
+
+          {/* Tab 3: Map Drawing */}
           {inputMode === 'map' && (
             <View style={styles.inputPanel}>
               <Text style={styles.fieldLabel}>Draw Site Boundary</Text>
@@ -619,7 +825,7 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
             </View>
           )}
 
-          {/* Tab 3: Land Certificate */}
+          {/* Tab 4: Land Certificate */}
           {inputMode === 'document' && (
             <View style={styles.inputPanel}>
               <Text style={styles.fieldLabel}>Option 1: Enter UPI Number</Text>
@@ -669,8 +875,24 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
                   </>
                 )}
               </Pressable>
+              {uploadedDocument ? (
+                <View style={styles.uploadedDocCard}>
+                  <Ionicons
+                    name={uploadedDocument.name.toLowerCase().endsWith('.pdf') ? 'document-text-outline' : 'image-outline'}
+                    size={18}
+                    color={COLORS.PRIMARY}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.uploadedDocName} numberOfLines={1}>
+                      {uploadedDocument.name}
+                    </Text>
+                    <Text style={styles.uploadedDocMeta}>{uploadedDocument.size}</Text>
+                  </View>
+                  <Ionicons name="checkmark-circle" size={18} color={COLORS.SUCCESS} />
+                </View>
+              ) : null}
               <Text style={styles.helperText}>
-                PDF, JPEG, or PNG. We&apos;ll extract the UPI and verify with RLMUA.
+                Accepted files: PDF, JPEG, PNG, or any image photo of the certificate.
               </Text>
             </View>
           )}
@@ -690,11 +912,13 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
               style={[
                 styles.nextButton,
                 (inputMode === 'search' && (!searchedAddressData || !isPolygonValid)) && styles.disabledButton,
+                (inputMode === 'gps' && !isPolygonValid) && styles.disabledButton,
                 (inputMode === 'map' && !isPolygonValid) && styles.disabledButton,
                 (inputMode === 'document' && !verifiedLandData) && styles.disabledButton,
               ]}
               disabled={
                 (inputMode === 'search' && (!searchedAddressData || !isPolygonValid)) ||
+                (inputMode === 'gps' && !isPolygonValid) ||
                 (inputMode === 'map' && !isPolygonValid) ||
                 (inputMode === 'document' && !verifiedLandData)
               }
@@ -703,8 +927,7 @@ export default function Step3_Location({ data, onUpdate, onNext, onPrev }: Step3
               <Ionicons name="arrow-forward" size={20} color="#FFF" />
             </Pressable>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Full Screen Map Modal */}
       <Modal
@@ -809,6 +1032,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
   },
+  scrollContent: {
+    paddingBottom: 36,
+  },
   titleSection: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -869,6 +1095,44 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: COLORS.PRIMARY,
   },
+  methodGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginHorizontal: 20,
+    marginVertical: 12,
+    rowGap: 10,
+  },
+  methodCard: {
+    alignItems: 'center',
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 74,
+    padding: 12,
+    width: methodCardWidth,
+  },
+  activeMethodCard: {
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderColor: COLORS.PRIMARY,
+  },
+  methodTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  activeMethodTitle: {
+    color: COLORS.PRIMARY,
+  },
+  methodText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
   inputPanel: {
     backgroundColor: COLORS.SURFACE,
     borderRadius: 16,
@@ -883,6 +1147,66 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.TEXT_PRIMARY,
     marginBottom: 10,
+  },
+  panelHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  smallOutlineButton: {
+    alignItems: 'center',
+    borderColor: COLORS.PRIMARY,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  smallOutlineText: {
+    color: COLORS.PRIMARY,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  gpsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  gpsField: {
+    flex: 1,
+  },
+  gpsLabel: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  gpsInput: {
+    backgroundColor: COLORS.MUTED,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 10,
+    borderWidth: 1,
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 14,
+    fontWeight: '800',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  fullPrimaryButton: {
+    alignItems: 'center',
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 13,
+  },
+  fullPrimaryButtonText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '900',
   },
   helperText: {
     fontSize: 12,
@@ -991,6 +1315,27 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  uploadedDocCard: {
+    alignItems: 'center',
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderColor: 'rgba(4, 120, 87, 0.22)',
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+    padding: 12,
+  },
+  uploadedDocName: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  uploadedDocMeta: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    marginTop: 2,
   },
   summaryCard: {
     backgroundColor: COLORS.SURFACE,

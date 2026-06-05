@@ -36,7 +36,13 @@ type SettingsRoute =
   | "/(supplier)/profile-edit"
   | "/(supplier)/purchase-orders"
   | "/(supplier)/quotes"
-  | "/(supplier)/rfqs";
+  | "/(supplier)/rfqs"
+  | "/(site-agent)"
+  | "/(site-agent)/daily-report"
+  | "/(site-agent)/inventory"
+  | "/(site-agent)/messages"
+  | "/(site-agent)/profile-edit"
+  | "/(site-agent)/receiving";
 
 type Shortcut = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -56,6 +62,7 @@ const roleHome: Record<UserRole, SettingsRoute> = {
   engineer: "/(engineer)",
   supervisor: "/(supervisor)",
   supplier: "/(supplier)",
+  site_agent: "/(site-agent)",
 };
 
 const roleProfileEdit: Record<UserRole, SettingsRoute> = {
@@ -64,6 +71,7 @@ const roleProfileEdit: Record<UserRole, SettingsRoute> = {
   engineer: "/(engineer)/profile-edit",
   supervisor: "/(supervisor)/profile-edit",
   supplier: "/(supplier)/profile-edit",
+  site_agent: "/(site-agent)/profile-edit",
 };
 
 const roleNotifications: Record<UserRole, SettingsRoute> = {
@@ -72,6 +80,7 @@ const roleNotifications: Record<UserRole, SettingsRoute> = {
   engineer: "/(engineer)/notifications",
   supervisor: "/(supervisor)/notifications",
   supplier: "/(supplier)/notifications",
+  site_agent: "/(site-agent)",
 };
 
 const roleShortcuts: Record<UserRole, Shortcut[]> = {
@@ -101,6 +110,12 @@ const roleShortcuts: Record<UserRole, Shortcut[]> = {
     { icon: "document-text-outline", label: "Quotes", route: "/(supplier)/quotes" },
     { icon: "cart-outline", label: "Orders", route: "/(supplier)/purchase-orders" },
     { icon: "cube-outline", label: "Deliveries", route: "/(supplier)/deliveries" },
+  ],
+  site_agent: [
+    { icon: "clipboard-outline", label: "Daily Report", route: "/(site-agent)/daily-report" },
+    { icon: "cube-outline", label: "Stock", route: "/(site-agent)/inventory" },
+    { icon: "keypad-outline", label: "Receiving", route: "/(site-agent)/receiving" },
+    { icon: "chatbubbles-outline", label: "Messages", route: "/(site-agent)/messages" },
   ],
 };
 
