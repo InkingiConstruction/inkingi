@@ -20,6 +20,6 @@ ios/
 .env.*
 
 # Private server credentials
-inkingi-construction-firebase-adminsdk-*.json
+*firebase-adminsdk-*.json
 
 # Keep google-services.json included for Android Firebase config.

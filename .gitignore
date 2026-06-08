@@ -33,7 +33,7 @@ yarn-error.*
 # local env files
 .env
 .env*.local
-inkingi-construction-firebase-adminsdk-*.json
+*firebase-adminsdk-*.json
 
 # typescript
 *.tsbuildinfo
