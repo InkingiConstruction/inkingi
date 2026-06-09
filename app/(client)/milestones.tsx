@@ -32,9 +32,24 @@ type ClientMilestoneView = {
   projectId: string;
   name: string;
   description?: string | null;
+  acceptanceCriteria?: string | null;
+  durationDays?: number | null;
   status: string;
   budgetPercentage: number;
   budgetAmount: number;
+  boqItems: {
+    id: string;
+    category?: string | null;
+    name: string;
+    quantity: string | number;
+    unit: string;
+    unitPrice: string | number;
+    totalPrice: string | number;
+    notes?: string | null;
+    supplierInventoryItem?: {
+      supplier?: { name?: string | null; email?: string | null } | null;
+    } | null;
+  }[];
   checklist: { id: string; task: string; completed: boolean }[];
   completionPhotos: string[];
   revisionNotes?: string | null;
@@ -67,6 +82,8 @@ const toMilestoneView = (milestone: any, project: any): ClientMilestoneView => {
     id: milestone.id,
     projectId: milestone.projectId,
     name: milestone.name,
+    acceptanceCriteria: milestone.acceptanceCriteria || null,
+    durationDays: milestone.durationDays ?? null,
     description:
       milestone.description ||
       milestone.acceptanceCriteria ||
@@ -76,6 +93,7 @@ const toMilestoneView = (milestone: any, project: any): ClientMilestoneView => {
     budgetAmount: Math.round(
       boqTotal || (projectBudget * budgetPercentage) / 100,
     ),
+    boqItems: Array.isArray(milestone.boqItems) ? milestone.boqItems : [],
     checklist: [
       {
         id: `${milestone.id}-scope`,
@@ -84,6 +102,8 @@ const toMilestoneView = (milestone: any, project: any): ClientMilestoneView => {
           milestone.description ||
           "Milestone scope submitted",
         completed: [
+          "pending_client_approval",
+          "active",
           "pending_supervisor",
           "awaiting_client_payment",
           "paid",
@@ -242,6 +262,20 @@ export default function MilestonesScreen() {
     },
   });
 
+  const approvePackageMutation = useMutation({
+    mutationFn: async (milestone: ClientMilestoneView) =>
+      api.put(ENDPOINTS.MILESTONES.UPDATE(milestone.id), {
+        status: "active",
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-milestones"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-project-vaults"] }),
+        queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] }),
+      ]);
+    },
+  });
+
   const revisionMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMilestone) throw new Error("Milestone is required");
@@ -337,6 +371,25 @@ export default function MilestonesScreen() {
     }
 
     setModalMode("passcode");
+  };
+
+  const handleApprovePackagePress = async () => {
+    if (!selectedMilestone) return;
+    try {
+      await approvePackageMutation.mutateAsync(selectedMilestone);
+      Alert.alert(
+        "Milestone activated",
+        "The BOQ package was approved and the milestone is now active for site execution.",
+      );
+      setSelectedMilestone(null);
+    } catch (error) {
+      Alert.alert(
+        "Approval failed",
+        error instanceof Error
+          ? error.message
+          : "Fund the project wallet and try again.",
+      );
+    }
   };
 
   const handleVerifyPasscodeSubmit = async () => {
@@ -468,7 +521,7 @@ export default function MilestonesScreen() {
     pending: projectMilestones.filter((m) => m.status === "pending"),
     active: projectMilestones.filter((m) => m.status === "active"),
     review: projectMilestones.filter((m) =>
-      ["awaiting_client_payment", "revision_required"].includes(m.status),
+      ["pending_client_approval", "awaiting_client_payment", "revision_required"].includes(m.status),
     ),
     completed: projectMilestones.filter((m) => m.status === "completed"),
   };
@@ -740,6 +793,8 @@ export default function MilestonesScreen() {
                       backgroundColor:
                         ms.status === "completed"
                           ? COLORS.SUCCESS
+                          : ms.status === "pending_client_approval"
+                            ? COLORS.INFO
                           : ms.status === "awaiting_client_payment"
                             ? COLORS.PRIMARY
                             : ms.status === "revision_required"
@@ -1071,6 +1126,83 @@ export default function MilestonesScreen() {
                       </View>
                     </View>
 
+                    {/* BOQ package mirror */}
+                    <View>
+                      <Text style={styles.sectionLabel}>Material & Labor BOQ</Text>
+                      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginBottom: 8 }}>
+                        Review the Main Contractor&apos;s priced package before approving funding.
+                      </Text>
+                      {selectedMilestone.boqItems.length === 0 ? (
+                        <View
+                          style={{
+                            backgroundColor: COLORS.MUTED,
+                            borderColor: COLORS.BORDER_LIGHT,
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            padding: 12,
+                          }}
+                        >
+                          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}>
+                            No BOQ items are attached to this milestone yet.
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={{ gap: 8 }}>
+                          {selectedMilestone.boqItems.map((item) => (
+                            <View
+                              key={item.id}
+                              style={{
+                                backgroundColor: COLORS.SURFACE,
+                                borderColor: COLORS.BORDER_LIGHT,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                padding: 10,
+                              }}
+                            >
+                              <View style={{ flexDirection: "row", gap: 10 }}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 13, fontWeight: "900" }}>
+                                    {item.name}
+                                  </Text>
+                                  <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, marginTop: 3 }}>
+                                    {item.category || "BOQ"} • {item.quantity} {item.unit} x {Number(item.unitPrice || 0).toLocaleString()} RWF
+                                  </Text>
+                                  <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, marginTop: 3 }}>
+                                    {item.supplierInventoryItem?.supplier?.name || "Supplier price locked"}
+                                  </Text>
+                                </View>
+                                <Text style={{ color: COLORS.PRIMARY, fontSize: 12, fontWeight: "900" }}>
+                                  {Number(item.totalPrice || 0).toLocaleString()} RWF
+                                </Text>
+                              </View>
+                              {item.notes ? (
+                                <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 17, marginTop: 7 }}>
+                                  {item.notes}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    <View
+                      style={{
+                        backgroundColor: COLORS.MUTED,
+                        borderColor: COLORS.BORDER_LIGHT,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        padding: 12,
+                      }}
+                    >
+                      <Text style={styles.sectionLabel}>Labor / Time Estimate</Text>
+                      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, lineHeight: 19 }}>
+                        {selectedMilestone.durationDays
+                          ? `${selectedMilestone.durationDays} day${selectedMilestone.durationDays === 1 ? "" : "s"} estimated for this phase.`
+                          : "No time estimate was provided for this milestone."}
+                      </Text>
+                    </View>
+
                     {/* Completion Photos */}
                     {selectedMilestone.completionPhotos.length > 0 && (
                       <View>
@@ -1133,6 +1265,44 @@ export default function MilestonesScreen() {
                     )}
 
                     {/* Actions Gated by status */}
+                    {selectedMilestone.status === "pending_client_approval" && (
+                      <View style={{ gap: 10, marginTop: 12 }}>
+                        <Pressable
+                          disabled={approvePackageMutation.isPending}
+                          onPress={handleApprovePackagePress}
+                          style={[
+                            styles.btn,
+                            { backgroundColor: COLORS.PRIMARY },
+                            approvePackageMutation.isPending && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Ionicons
+                            name="shield-checkmark-outline"
+                            size={20}
+                            color={COLORS.TEXT_WHITE}
+                          />
+                          <Text style={styles.btnText}>
+                            {approvePackageMutation.isPending ? "Approving..." : "Approve BOQ & Activate"}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => setModalMode("revision")}
+                          style={[
+                            styles.btn,
+                            { backgroundColor: COLORS.WARNING },
+                          ]}
+                        >
+                          <Ionicons
+                            name="refresh-outline"
+                            size={18}
+                            color={COLORS.TEXT_WHITE}
+                          />
+                          <Text style={styles.btnText}>Request BOQ Revision</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
                     {selectedMilestone.status === "awaiting_client_payment" && (
                       <View style={{ gap: 10, marginTop: 12 }}>
                         <Pressable
@@ -1377,8 +1547,8 @@ export default function MilestonesScreen() {
                     <Text
                       style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}
                     >
-                      State clearly what needs to be fixed. The Main Contractor will
-                      receive these details along with an email and push
+                      State clearly what needs to be fixed. The Main Contractor
+                      will receive these details along with an email and push
                       notification.
                     </Text>
 
@@ -1651,6 +1821,9 @@ function StatusBadge({ value }: { value: ClientMilestoneView["status"] }) {
   if (value === "completed") {
     color = COLORS.SUCCESS;
     bg = "#DCFCE7";
+  } else if (value === "pending_client_approval") {
+    color = COLORS.INFO;
+    bg = "#DBEAFE";
   } else if (value === "awaiting_client_payment") {
     color = COLORS.PRIMARY;
     bg = COLORS.PRIMARY_LIGHT;

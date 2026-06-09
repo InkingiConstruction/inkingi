@@ -108,13 +108,13 @@ export default function EngineerBoq() {
     mutationFn: () => {
       if (!activeMilestoneId) throw new Error("Select a milestone first.");
       if (boqItems.length === 0) throw new Error("Add at least one BOQ item before sending.");
-      return api.put(ENDPOINTS.MILESTONES.DETAIL(activeMilestoneId), { status: "pending_supervisor" });
+      return api.put(ENDPOINTS.MILESTONES.DETAIL(activeMilestoneId), { status: "pending_client_approval" });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
       await queryClient.invalidateQueries({ queryKey: ["supervisor-milestones"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      Alert.alert("BOQ sent", "The milestone and BOQ items are now waiting for supervisor review.");
+      Alert.alert("BOQ sent", "The milestone and BOQ items are now waiting for client approval.");
     },
     onError: (error) => Alert.alert("Submit failed", error instanceof Error ? error.message : "Try again."),
   });
@@ -180,7 +180,7 @@ export default function EngineerBoq() {
 
             <Pressable disabled={!activeMilestoneId || submitMutation.isPending} onPress={() => submitMutation.mutate()} style={{ alignItems: "center", backgroundColor: COLORS.INK, borderRadius: 8, flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 13 }}>
               <Ionicons name="send-outline" size={18} color={COLORS.TEXT_WHITE} />
-              <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>{submitMutation.isPending ? "Sending..." : "Send milestone and BOQ to supervisor"}</Text>
+            <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>{submitMutation.isPending ? "Sending..." : "Send milestone and BOQ to client"}</Text>
             </Pressable>
 
             {boqQuery.isLoading ? <ActivityIndicator color={COLORS.PRIMARY} /> : null}

@@ -13,6 +13,7 @@ import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils"
 const statusColor = (status: string) => {
   if (status === "paid") return COLORS.SUCCESS;
   if (status === "awaiting_client_payment") return COLORS.PRIMARY;
+  if (status === "pending_client_approval") return "#2563EB";
   if (status === "pending_supervisor") return "#7C3AED";
   if (status === "revision_required") return COLORS.WARNING;
   if (status === "active") return "#2563EB";
@@ -111,7 +112,7 @@ export default function EngineerMilestones() {
     onSuccess: async () => {
       resetForm();
       await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
-      Alert.alert("Milestone updated", "You can resend this milestone for supervisor review.");
+      Alert.alert("Milestone updated", "You can resend this milestone package for client approval.");
     },
     onError: (error) => Alert.alert("Update failed", error instanceof Error ? error.message : "Please try again."),
   });
@@ -124,7 +125,7 @@ export default function EngineerMilestones() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      Alert.alert("Sent", "The milestone and BOQ package were sent for supervisor review.");
+      Alert.alert("Sent", "The milestone and BOQ package were sent for client approval.");
     },
     onError: (error) => Alert.alert("Update failed", error instanceof Error ? error.message : "Please try again."),
     onSettled: () => setStatusActionId(""),
@@ -277,7 +278,7 @@ export default function EngineerMilestones() {
                   milestone={milestone}
                   loading={statusActionId === milestone.id && updateStatusMutation.isPending}
                   onEdit={() => startEdit(milestone)}
-                  onSubmitReview={() => updateStatusMutation.mutate({ id: milestone.id, status: "pending_supervisor" })}
+                  onSubmitReview={() => updateStatusMutation.mutate({ id: milestone.id, status: "pending_client_approval" })}
                 />
               ))}
             </>
@@ -292,7 +293,7 @@ function Header() {
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
-        ENGINEER WORKFLOW
+        MAIN CONTRACTOR WORKFLOW
       </Text>
       <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 28, fontWeight: "900" }}>
         Milestones
@@ -406,7 +407,7 @@ function MilestoneCard({
         {["pending", "active", "revision_required"].includes(milestone.status) ? (
           <Pressable disabled={loading} onPress={onSubmitReview} style={styles.primaryButton}>
             <Ionicons name="send-outline" size={17} color={COLORS.TEXT_WHITE} />
-            <Text style={styles.primaryButtonText}>{loading ? "Sending..." : "Send for review"}</Text>
+            <Text style={styles.primaryButtonText}>{loading ? "Sending..." : "Send to client"}</Text>
           </Pressable>
         ) : null}
       </View>
